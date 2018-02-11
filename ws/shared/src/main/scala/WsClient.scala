@@ -2,53 +2,95 @@ package covenant.ws
 
 import sloth._
 import mycelium.client._
+import mycelium.core.message._
+import chameleon._
 
+import monix.reactive.subjects.PublishSubject
+import monix.reactive.Observable
 import cats.data.EitherT
 import cats.implicits._
 
 import scala.concurrent.duration._
 import scala.concurrent.{Future, ExecutionContext}
 
-object WsClient {
-  def apply[PickleType, ErrorType : ClientFailureConvert](
-    client: WebsocketClient[PickleType, _, ErrorType],
-    sendType: SendType = SendType.WhenConnected,
-    requestTimeout: FiniteDuration = 30 seconds,
-    logger: LogHandler[Future] = new LogHandler[Future],
-    recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty
-  )(implicit ec: ExecutionContext): Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType] = {
+abstract class WsClient[PickleType, Result[_], Event, Failure, ErrorType](
+  uri: String,
+  connection: WebsocketConnection[PickleType],
+  config: WebsocketClientConfig)
+(implicit
+  serializer: Serializer[ClientMessage[PickleType], PickleType],
+  deserializer: Deserializer[ServerMessage[PickleType, Event, Failure], PickleType]
+){
+  import WsClient._
 
-    val transport = new RequestTransport[PickleType, EitherT[Future, ErrorType, ?]] {
-      def apply(request: Request[PickleType]): EitherT[Future, ErrorType, PickleType] =
-        EitherT(client.send(request.path, request.payload, sendType, requestTimeout).recover(recover andThen Left.apply))
-    }
+  private val eventSubject = PublishSubject[Incident[Event]]()
+  protected val mycelium = WebsocketClient[PickleType, Event, Failure](connection, config, defaultHandler(eventSubject))
+  mycelium.run(uri)
 
-    Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport)
-  }
+  val observable: Observable[Incident[Event]] = eventSubject
 
-  def apply[PickleType](
-    client: WebsocketClient[PickleType, _, _],
-    sendType: SendType,
-    requestTimeout: FiniteDuration,
+  def sendWithDefault = sendWith()
+
+  def sendWith(sendType: SendType = SendType.WhenConnected, requestTimeout: FiniteDuration = 30 seconds): Client[PickleType, Result, ErrorType]
+}
+object WsClient extends NativeWsClient {
+
+  def fromConnection[PickleType, Event, ErrorType](
+    uri: String,
+    connection: WebsocketConnection[PickleType],
+    config: WebsocketClientConfig,
     logger: LogHandler[Future]
-  )(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = {
+  )(implicit
+    ec: ExecutionContext,
+    serializer: Serializer[ClientMessage[PickleType], PickleType],
+    deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
+  ) = new WsClient[PickleType, Future, Event, ErrorType, ClientException](uri, connection, config) {
 
-    val transport = new RequestTransport[PickleType, Future] {
-      def apply(request: Request[PickleType]): Future[PickleType] = {
-        client.send(request.path, request.payload, sendType, requestTimeout).flatMap {
-          case Right(res) => Future.successful(res)
-          case Left(err) => Future.failed(new Exception(s"Websocket request failed: $err"))
+    def sendWith(sendType: SendType, requestTimeout: FiniteDuration) = {
+      val transport = new RequestTransport[PickleType, Future] {
+        def apply(request: Request[PickleType]): Future[PickleType] = {
+          mycelium.send(request.path, request.payload, sendType, requestTimeout).flatMap {
+            case Right(res) => Future.successful(res)
+            case Left(err) => Future.failed(new Exception(s"Websocket request failed: $err"))
+          }
         }
       }
-    }
 
-    Client[PickleType, Future, ClientException](transport, logger)
+      Client[PickleType, Future, ClientException](transport, logger)
+    }
   }
 
-  def apply[PickleType](client: WebsocketClient[PickleType, _, _])(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = apply(client, SendType.WhenConnected, 30 seconds)
-  def apply[PickleType](client: WebsocketClient[PickleType, _, _], sendType: SendType)(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = apply(client, sendType, 30 seconds)
-  def apply[PickleType](client: WebsocketClient[PickleType, _, _], requestTimeout: FiniteDuration)(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = apply(client, SendType.WhenConnected, requestTimeout)
-  def apply[PickleType](client: WebsocketClient[PickleType, _, _], sendType: SendType, requestTimeout: FiniteDuration)(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = apply(client, sendType, requestTimeout, new LogHandler[Future])
-  def apply[PickleType](client: WebsocketClient[PickleType, _, _], sendType: SendType, logger: LogHandler[Future])(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = apply(client, sendType, 30.seconds, logger)
-  def apply[PickleType](client: WebsocketClient[PickleType, _, _], requestTimeout: FiniteDuration, logger: LogHandler[Future])(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = apply(client, SendType.WhenConnected, requestTimeout, logger)
+  def fromConnection[PickleType, Event, ErrorType : ClientFailureConvert](
+    uri: String,
+    connection: WebsocketConnection[PickleType],
+    config: WebsocketClientConfig,
+    recover: PartialFunction[Throwable, ErrorType],
+    logger: LogHandler[EitherT[Future, ErrorType, ?]]
+  )(implicit
+    ec: ExecutionContext,
+    serializer: Serializer[ClientMessage[PickleType], PickleType],
+    deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
+  ) = new WsClient[PickleType, EitherT[Future, ErrorType, ?], Event, ErrorType, ErrorType](uri, connection, config) {
+
+    def sendWith(sendType: SendType, requestTimeout: FiniteDuration) = {
+      val transport = new RequestTransport[PickleType, EitherT[Future, ErrorType, ?]] {
+        def apply(request: Request[PickleType]): EitherT[Future, ErrorType, PickleType] =
+          EitherT(mycelium.send(request.path, request.payload, sendType, requestTimeout).recover(recover andThen Left.apply))
+      }
+
+      Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, logger)
+    }
+  }
+
+  private def defaultHandler[Event](eventSubject: PublishSubject[Incident[Event]]) = new IncidentHandler[Event] {
+    override def onConnect(): Unit = { eventSubject.onNext(Connected); () }
+    override def onClose(): Unit = { eventSubject.onNext(Closed); () }
+    override def onEvents(events: List[Event]): Unit = { eventSubject.onNext(NewEvents(events)); () }
+  }
+
+  sealed trait Incident[+Event]
+  case object Connected extends Incident[Nothing]
+  case object Closed extends Incident[Nothing]
+  case class NewEvents[+Event](events: List[Event]) extends Incident[Event]
 }
+

@@ -97,6 +97,7 @@ lazy val ws = crossProject
     name := "covenant-ws",
     libraryDependencies ++=
       Deps.mycelium.value ::
+      Deps.monix.value ::
       Nil
   )
 

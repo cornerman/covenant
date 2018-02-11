@@ -12,11 +12,12 @@ import cats.implicits._
 import scala.concurrent.{Future, Promise, ExecutionContext}
 import scala.util.Try
 
-object HttpClient {
+private[http] trait NativeHttpClient {
   def apply[PickleType, ErrorType : ClientFailureConvert](
     baseUri: String,
     failedRequestError: (String, Int) => ErrorType,
-    recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty
+    recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty,
+    logger: LogHandler[EitherT[Future, ErrorType, ?]] = new LogHandler[EitherT[Future, ErrorType, ?]]
   )(implicit
     ec: ExecutionContext,
     builder: JsMessageBuilder[PickleType]): Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType] = {
@@ -28,11 +29,12 @@ object HttpClient {
       }
     }
 
-    Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport)
+    Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, logger)
   }
 
   def apply[PickleType](
-    baseUri: String
+    baseUri: String,
+    logger: LogHandler[Future]
   )(implicit
     ec: ExecutionContext,
     builder: JsMessageBuilder[PickleType]): Client[PickleType, Future, ClientException] = {
@@ -47,8 +49,14 @@ object HttpClient {
       }
     }
 
-    Client[PickleType, Future, ClientException](transport)
+    Client[PickleType, Future, ClientException](transport, logger)
   }
+
+  def apply[PickleType](
+    baseUri: String
+  )(implicit
+    ec: ExecutionContext,
+    builder: JsMessageBuilder[PickleType]): Client[PickleType, Future, ClientException] = apply[PickleType](baseUri, new LogHandler[Future])
 
   private def sendRequest[PickleType, ErrorType](
     baseUri: String,
@@ -59,7 +67,6 @@ object HttpClient {
 
     val uri = (baseUri :: request.path).mkString("/")
     val promise = Promise[Either[ErrorType, PickleType]]
-    scribe.info(s"Outgoing request ($uri)")
 
     val http = new dom.XMLHttpRequest
     def failedRequest = failedRequestError(uri, http.status)
@@ -67,7 +74,6 @@ object HttpClient {
     http.open("POST", uri, true)
     http.onreadystatechange = { (_: dom.Event) =>
       if(http.readyState == 4)
-        scribe.info(s"Got response ($uri): ${http.status}")
         if (http.status == 200) {
           val blob = new dom.Blob(Seq(http.response).toJSArray, dom.BlobPropertyBag(http.getResponseHeader("Content-Type")))
           val value = builder.unpack(blob).map(_.toRight(failedRequest))

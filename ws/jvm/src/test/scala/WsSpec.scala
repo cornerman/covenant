@@ -26,6 +26,51 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     def fun(a: Int, b: Int): Result[Int] = fun(a + b)
   }
 
+  object FutureApiImpl extends Api[Future] {
+    def fun(a: Int): Future[Int] = Future.successful(a)
+  }
+
+  implicit val system = ActorSystem("mycelium")
+  implicit val materializer = ActorMaterializer()
+
+  val port = 9999
+
+  override def afterAll(): Unit = {
+    system.terminate()
+    ()
+  }
+
+ "simple run" in {
+    object Backend {
+      val router = Router[ByteBuffer, Future]
+        .route[Api[Future]](FutureApiImpl)
+
+      def run() = {
+        val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
+        val route = router.asWsRoute[ApiError](config, failedRequestError = err => SlothError(err.toString))
+        Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
+      }
+    }
+
+    object Frontend {
+      val config = WebsocketClientConfig()
+      val akkaConfig = AkkaWebsocketConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
+
+      val client = WsClient[ByteBuffer, Unit, ApiError](s"ws://localhost:$port/ws", akkaConfig, config)
+      val api = client.sendWithDefault.wire[Api[Future]]
+    }
+
+    Backend.run()
+
+    for {
+      fun <- Frontend.api.fun(1)
+      fun2 <- Frontend.api.fun(1, 2)
+    } yield {
+      fun mustEqual 1
+      fun2 mustEqual 3
+    }
+  }
+
   //TODO generalize over this structure, can implement requesthander? --> apidsl
   type Event = String
   type State = String
@@ -45,16 +90,6 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
   object ApiImpl extends Api[ApiResultFun] {
     def fun(a: Int): ApiResultFun[Int] =
       state => ApiResult(state, Future.successful(ApiValue(a, Nil)))
-  }
-
-  implicit val system = ActorSystem("mycelium")
-  implicit val materializer = ActorMaterializer()
-
-  val port = 9999
-
-  override def afterAll(): Unit = {
-    system.terminate()
-    ()
   }
 
  "run" in {
@@ -82,20 +117,14 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     }
 
     object Frontend {
+      val config = WebsocketClientConfig()
       val akkaConfig = AkkaWebsocketConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-      val mycelium = WebsocketClient[ByteBuffer, Event, ApiError](
-        new AkkaWebsocketConnection(akkaConfig), WebsocketClientConfig(), new IncidentHandler[Event])
 
-      val client = WsClient[ByteBuffer](mycelium)
-      val api = client.wire[Api[Future]]
-
-      def run() = {
-        mycelium.run(s"ws://localhost:$port/ws")
-      }
+      val client = WsClient[ByteBuffer, Unit, ApiError](s"ws://localhost:$port/ws", akkaConfig, config)
+      val api = client.sendWithDefault.wire[Api[Future]]
     }
 
     Backend.run()
-    Frontend.run()
 
     for {
       fun <- Frontend.api.fun(1)

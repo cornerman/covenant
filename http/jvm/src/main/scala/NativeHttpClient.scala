@@ -15,11 +15,12 @@ import cats.implicits._
 
 import scala.concurrent.Future
 
-object HttpClient {
+private[http] trait NativeHttpClient {
   def apply[PickleType, ErrorType : ClientFailureConvert](
     baseUri: String,
     failedRequestError: (String, StatusCode) => ErrorType,
-    recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty
+    recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty,
+    logger: LogHandler[EitherT[Future, ErrorType, ?]] = new LogHandler[EitherT[Future, ErrorType, ?]]
   )(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
@@ -38,7 +39,8 @@ object HttpClient {
   }
 
   def apply[PickleType](
-    baseUri: String
+    baseUri: String,
+    logger: LogHandler[Future]
   )(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
@@ -59,6 +61,14 @@ object HttpClient {
     Client[PickleType, Future, ClientException](transport)
   }
 
+  def apply[PickleType](
+    baseUri: String
+  )(implicit
+    system: ActorSystem,
+    materializer: ActorMaterializer,
+    unmarshaller: FromByteStringUnmarshaller[PickleType],
+    marshaller: ToEntityMarshaller[PickleType]): Client[PickleType, Future, ClientException] = apply[PickleType](baseUri, new LogHandler[Future])
+
   private def sendRequest[PickleType, ErrorType](
     baseUri: String,
     failedRequestError: (String, StatusCode) => ErrorType
@@ -71,13 +81,11 @@ object HttpClient {
 
     val uri = (baseUri :: request.path).mkString("/")
     val entity = Marshal(request.payload).to[MessageEntity]
-    scribe.info(s"Outgoing request ($uri)")
 
     entity.flatMap { entity =>
       Http()
         .singleRequest(HttpRequest(method = HttpMethods.POST, uri = uri, headers = Nil, entity = entity))
         .flatMap { response =>
-          scribe.info(s"Got response ($uri): ${response.status}")
           response.status match {
             case StatusCodes.OK =>
               response.entity.dataBytes.runFold(new ByteStringBuilder)(_ append _).flatMap { b =>
