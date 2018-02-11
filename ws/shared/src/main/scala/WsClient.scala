@@ -15,6 +15,7 @@ object WsClient {
     client: WebsocketClient[PickleType, _, ErrorType],
     sendType: SendType = SendType.WhenConnected,
     requestTimeout: FiniteDuration = 30 seconds,
+    logger: LogHandler[Future] = new LogHandler[Future],
     recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty
   )(implicit ec: ExecutionContext): Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType] = {
 
@@ -29,7 +30,8 @@ object WsClient {
   def apply[PickleType](
     client: WebsocketClient[PickleType, _, _],
     sendType: SendType,
-    requestTimeout: FiniteDuration
+    requestTimeout: FiniteDuration,
+    logger: LogHandler[Future]
   )(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = {
 
     val transport = new RequestTransport[PickleType, Future] {
@@ -47,4 +49,7 @@ object WsClient {
   def apply[PickleType](client: WebsocketClient[PickleType, _, _])(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = apply(client, SendType.WhenConnected, 30 seconds)
   def apply[PickleType](client: WebsocketClient[PickleType, _, _], sendType: SendType)(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = apply(client, sendType, 30 seconds)
   def apply[PickleType](client: WebsocketClient[PickleType, _, _], requestTimeout: FiniteDuration)(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = apply(client, SendType.WhenConnected, requestTimeout)
+  def apply[PickleType](client: WebsocketClient[PickleType, _, _], sendType: SendType, requestTimeout: FiniteDuration)(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = apply(client, sendType, requestTimeout, new LogHandler[Future])
+  def apply[PickleType](client: WebsocketClient[PickleType, _, _], sendType: SendType, logger: LogHandler[Future])(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = apply(client, sendType, 30.seconds, logger)
+  def apply[PickleType](client: WebsocketClient[PickleType, _, _], requestTimeout: FiniteDuration, logger: LogHandler[Future])(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = apply(client, SendType.WhenConnected, requestTimeout, logger)
 }
