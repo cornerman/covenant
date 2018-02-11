@@ -1,7 +1,6 @@
 package covenant.http
 
-import sloth.core._
-import sloth.client._
+import sloth._
 
 import org.scalajs.dom
 import scala.scalajs.js.typedarray.ArrayBuffer

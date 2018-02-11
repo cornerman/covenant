@@ -1,7 +1,6 @@
 package covenant.ws
 
-import sloth.core._
-import sloth.client._
+import sloth._
 import mycelium.client._
 
 import cats.data.EitherT

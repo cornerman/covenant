@@ -3,15 +3,18 @@ package test
 import org.scalatest._
 
 import covenant.ws._
+import sloth._
 import chameleon.ext.boopickle._
+import boopickle.Default._
+import java.nio.ByteBuffer
 import mycelium.client._
 import mycelium.server._
+
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.RouteResult._
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.actor.ActorSystem
-import boopickle.Default._
-import java.nio.ByteBuffer
+
 import cats.implicits._
 
 import scala.concurrent.Future

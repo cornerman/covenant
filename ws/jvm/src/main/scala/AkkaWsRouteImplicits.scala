@@ -1,5 +1,6 @@
 package covenant.ws
 
+import sloth._
 import mycelium.core._
 import mycelium.core.message._
 import mycelium.server._

@@ -1,6 +1,6 @@
 package covenant.http
 
-import sloth.core._
+import sloth._
 
 import akka.util.ByteString
 import akka.http.scaladsl.server.Route
