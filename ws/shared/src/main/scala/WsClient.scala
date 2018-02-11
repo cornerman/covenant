@@ -42,7 +42,7 @@ object WsClient {
       }
     }
 
-    Client[PickleType, Future, ClientException](transport)
+    Client[PickleType, Future, ClientException](transport, logger)
   }
 
   def apply[PickleType](client: WebsocketClient[PickleType, _, _])(implicit ec: ExecutionContext): Client[PickleType, Future, ClientException] = apply(client, SendType.WhenConnected, 30 seconds)
