@@ -70,5 +70,5 @@ TODO: documentation
 
 See:
 
-- [Test](https://github.com/cornerman/covenant/blob/master/http/jvm/src/test/scala/HttpSpec.scala)
+- [Test](https://github.com/cornerman/covenant/blob/master/ws/jvm/src/test/scala/WsSpec.scala)
 - [mycelium](https://github.com/cornerman/mycelium)
