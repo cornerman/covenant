@@ -4,6 +4,7 @@ import sloth._
 
 import org.scalajs.dom
 import scala.scalajs.js.typedarray.ArrayBuffer
+import scala.scalajs.js.JSConverters._
 
 import cats.data.EitherT
 import cats.implicits._
@@ -66,13 +67,8 @@ object HttpClient {
     http.onreadystatechange = { (_: dom.Event) =>
       if(http.readyState == 4)
         if (http.status == 200) {
-          val value = (http.response: Any) match {
-            case s: String => builder.unpack(s).map(_.toRight(failedRequest))
-            case a: ArrayBuffer => builder.unpack(a).map(_.toRight(failedRequest))
-            case b: dom.Blob => builder.unpack(b).map(_.toRight(failedRequest))
-            case _ => Future.successful(Left(failedRequest))
-          }
-
+          val blob = new dom.Blob(Seq(http.response).toJSArray, dom.BlobPropertyBag(http.getResponseHeader("Content-Type")))
+          val value = builder.unpack(blob).map(_.toRight(failedRequest))
           promise completeWith value
         }
         else promise trySuccess Left(failedRequest)
