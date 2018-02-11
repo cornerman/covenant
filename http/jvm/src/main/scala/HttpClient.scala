@@ -30,7 +30,7 @@ object HttpClient {
 
     val transport = new RequestTransport[PickleType, EitherT[Future, ErrorType, ?]] {
       private val sender = sendRequest[PickleType, ErrorType](baseUri, failedRequestError) _
-      def apply(request: Request[PickleType]) = EitherT {
+      def apply(request: Request[PickleType]) = EitherT[Future, ErrorType, PickleType] {
         sender(request).recover(recover andThen Left.apply)
       }
     }

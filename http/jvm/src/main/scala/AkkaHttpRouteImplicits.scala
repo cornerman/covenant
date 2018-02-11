@@ -11,6 +11,7 @@ import akka.http.scaladsl.model._
 import akka.stream.Materializer
 
 import cats.data.EitherT
+import cats.syntax.either._
 
 import java.nio.ByteBuffer
 import scala.concurrent.{Future, ExecutionContext}
