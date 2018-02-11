@@ -59,6 +59,7 @@ object HttpClient {
 
     val uri = (baseUri :: request.path).mkString("/")
     val promise = Promise[Either[ErrorType, PickleType]]
+    scribe.info(s"Outgoing request ($uri)")
 
     val http = new dom.XMLHttpRequest
     def failedRequest = failedRequestError(uri, http.status)
@@ -66,6 +67,7 @@ object HttpClient {
     http.open("POST", uri, true)
     http.onreadystatechange = { (_: dom.Event) =>
       if(http.readyState == 4)
+        scribe.info(s"Got response ($uri): ${http.status}")
         if (http.status == 200) {
           val blob = new dom.Blob(Seq(http.response).toJSArray, dom.BlobPropertyBag(http.getResponseHeader("Content-Type")))
           val value = builder.unpack(blob).map(_.toRight(failedRequest))

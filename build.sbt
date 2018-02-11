@@ -61,6 +61,7 @@ lazy val core = crossProject.crossType(CrossType.Pure)
     name := "covenant-core",
     libraryDependencies ++=
       Deps.sloth.value ::
+      Deps.scribe.value ::
       Nil
   )
 

@@ -71,10 +71,13 @@ object HttpClient {
 
     val uri = (baseUri :: request.path).mkString("/")
     val entity = Marshal(request.payload).to[MessageEntity]
+    scribe.info(s"Outgoing request ($uri)")
+
     entity.flatMap { entity =>
       Http()
         .singleRequest(HttpRequest(method = HttpMethods.POST, uri = uri, headers = Nil, entity = entity))
         .flatMap { response =>
+          scribe.info(s"Got response ($uri): ${response.status}")
           response.status match {
             case StatusCodes.OK =>
               response.entity.dataBytes.runFold(new ByteStringBuilder)(_ append _).flatMap { b =>
