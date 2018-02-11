@@ -78,7 +78,8 @@ object HttpClient {
         else promise trySuccess Left(failedRequest)
     }
 
-    (request.payload: Any) match {
+    val message = builder.pack(request.payload)
+    (message: Any) match {
       case s: String => Try(http.send(s))
       case a: ArrayBuffer => Try(http.send(a))
       case b: dom.Blob => Try(http.send(b))
