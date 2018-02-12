@@ -47,16 +47,14 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 
       def run() = {
         val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-        val route = router.asWsRoute[ApiError](config, failedRequestError = err => SlothError(err.toString))
+        val route = router.asWsRoute[ApiError](config, failedRequestError = err => ApiError(err.toString))
         Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
       }
     }
 
     object Frontend {
       val config = WebsocketClientConfig()
-      val akkaConfig = AkkaWebsocketConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-
-      val client = WsClient[ByteBuffer, Unit, ApiError](s"ws://localhost:$port/ws", akkaConfig, config)
+      val client = WsClient[ByteBuffer, Unit, ApiError](s"ws://localhost:$port/ws", config)
       val api = client.sendWithDefault.wire[Api[Future]]
     }
 
@@ -79,48 +77,48 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
   case class ApiResult[T](state: Future[State], value: Future[ApiValue[T]])
   type ApiResultFun[T] = Future[State] => ApiResult[T]
 
-  sealed trait ApiError
-  case class SlothError(msg: String) extends ApiError
+  case class ApiError(msg: String)
 
   implicit val apiValueFunctor = cats.derive.functor[ApiValue]
   implicit val apiResultFunctor = cats.derive.functor[ApiResult]
   implicit val apiResultFunFunctor = cats.derive.functor[ApiResultFun]
   //
 
-  object ApiImpl extends Api[ApiResultFun] {
-    def fun(a: Int): ApiResultFun[Int] =
-      state => ApiResult(state, Future.successful(ApiValue(a, Nil)))
-  }
 
- "run" in {
-    object Backend {
-      val router = Router[ByteBuffer, ApiResultFun]
-        .route[Api[ApiResultFun]](ApiImpl)
+  "run" in {
+    import covenant.ws.api._
+    import monix.execution.Scheduler.Implicits.global
 
-      val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-      val handler = new SimpleRequestHandler[ByteBuffer, Event, ApiError, State] {
-        def initialState = Future.successful("empty")
-        def onRequest(state: Future[State], path: List[String], payload: ByteBuffer) = {
-          router(Request(path, payload)).toEither match {
-            case Right(fun) =>
-              val res = fun(state)
-              Response(res.state, res.value.map(v => ReturnValue(Right(v.result), v.events)))
-            case Left(err) =>
-              Response(state, Future.successful(ReturnValue(Left(SlothError(err.toString)))))
-          }
-        }
+    val api = new ApiConfigurationWithDefaults[Event, ApiError, State] {
+      override def initialState: State = ""
+      override def isStateValid(state: State): Boolean = true
+      override def applyEventsToState(state: State, events: Seq[Event]): State = state + " " + events.mkString(",")
+      override def serverFailure(error: ServerFailure): ApiError = ApiError(error.toString)
+      override def unhandledException(t: Throwable): ApiError = ApiError(t.getMessage)
+    }
+
+    object ApiImpl extends Api[api.dsl.ApiFunction] {
+      import api.dsl._
+
+      def fun(a: Int): ApiFunction[Int] = Action { state =>
+        Future.successful(a)
       }
+    }
+
+    object Backend {
+      val router = Router[ByteBuffer, api.dsl.ApiFunction]
+        .route[Api[api.dsl.ApiFunction]](ApiImpl)
 
       def run() = {
-        Http().bindAndHandle(router.asWsRoute(config, handler), interface = "0.0.0.0", port = port)
+        val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
+        val route = api.asWsRoute(router, config)
+        Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
       }
     }
 
     object Frontend {
       val config = WebsocketClientConfig()
-      val akkaConfig = AkkaWebsocketConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-
-      val client = WsClient[ByteBuffer, Unit, ApiError](s"ws://localhost:$port/ws", akkaConfig, config)
+      val client = WsClient[ByteBuffer, Unit, ApiError](s"ws://localhost:$port/ws", config)
       val api = client.sendWithDefault.wire[Api[Future]]
     }
 

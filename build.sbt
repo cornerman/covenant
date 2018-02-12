@@ -41,7 +41,6 @@ lazy val commonSettings = Seq(
   },
 
   libraryDependencies ++=
-    Deps.kittens.value % Test ::
     Deps.boopickle.value % Test ::
     Deps.scalaTest.value % Test ::
     Nil,
@@ -61,6 +60,7 @@ lazy val core = crossProject.crossType(CrossType.Pure)
     name := "covenant-core",
     libraryDependencies ++=
       Deps.sloth.value ::
+      Deps.kittens.value ::
       Deps.scribe.value ::
       Nil
   )
