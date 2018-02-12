@@ -4,6 +4,7 @@ import covenant.core.util.StopWatch
 import sloth._
 import mycelium.server._
 import monix.execution.Scheduler
+import cats.syntax.either._
 
 import scala.concurrent.Future
 
