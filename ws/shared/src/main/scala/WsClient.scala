@@ -27,8 +27,12 @@ abstract class WsClient[PickleType, Result[_], Event, Failure, ErrorType](
   protected val mycelium = WebsocketClient[PickleType, Event, Failure](connection, config, defaultHandler(incidentSubject))
   mycelium.run(uri)
 
-  val incidentObservable: Observable[Incident[Event]] = incidentSubject
-  val eventObservable: Observable[List[Event]] = incidentObservable.collect { case NewEvents(events) if events.nonEmpty => events }
+  object observable {
+    val incident: Observable[Incident[Event]] = incidentSubject
+    val event: Observable[List[Event]] = incident.collect { case NewEvents(events) if events.nonEmpty => events }
+    val connected: Observable[Connected.type] = incident.collect { case Connected => Connected }
+    val closed: Observable[Closed.type] = incident.collect { case Closed => Closed }
+  }
 
   def sendWithDefault = sendWith()
 
