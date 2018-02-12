@@ -5,7 +5,6 @@ import covenant.core.DefaultLogHandler
 
 import org.scalajs.dom
 import scala.scalajs.js.typedarray.ArrayBuffer
-import scala.scalajs.js.JSConverters._
 
 import cats.data.EitherT
 import cats.implicits._
@@ -71,14 +70,19 @@ private[http] trait NativeHttpClient {
     val promise = Promise[Either[ErrorType, PickleType]]
 
     val http = new dom.XMLHttpRequest
+    http.responseType = builder.responseType
     def failedRequest = failedRequestError(uri, http.status)
 
     http.open("POST", uri, true)
     http.onreadystatechange = { (_: dom.Event) =>
       if(http.readyState == 4)
         if (http.status == 200) {
-          val blob = new dom.Blob(Seq(http.response).toJSArray, dom.BlobPropertyBag(http.getResponseHeader("Content-Type")))
-          val value = builder.unpack(blob).map(_.toRight(failedRequest))
+          val value = (http.response: Any) match {
+            case s: String => builder.unpack(s).map(_.toRight(failedRequest))
+            case a: ArrayBuffer => builder.unpack(a).map(_.toRight(failedRequest))
+            case b: dom.Blob => builder.unpack(b).map(_.toRight(failedRequest))
+            case _ => Future.successful(Left(failedRequest))
+          }
           promise completeWith value
         }
         else promise trySuccess Left(failedRequest)

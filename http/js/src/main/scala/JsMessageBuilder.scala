@@ -11,6 +11,7 @@ import scala.concurrent.{Promise, Future}
 trait JsMessageBuilder[PickleType] {
   import JsMessageBuilder._
 
+  def responseType: String
   def pack(msg: PickleType): Message
   def unpack(m: Message): Future[Option[PickleType]]
 }
@@ -19,6 +20,7 @@ object JsMessageBuilder {
   type Message = String | ArrayBuffer | Blob
 
   implicit val JsMessageBuilderString = new JsMessageBuilder[String] {
+    val responseType = ""
     def pack(msg: String): Message = msg
     def unpack(m: Message): Future[Option[String]] = (m: Any) match {
       case s: String => Future.successful(Some(s))
@@ -27,6 +29,7 @@ object JsMessageBuilder {
     }
   }
   implicit val JsMessageBuilderByteBuffer = new JsMessageBuilder[ByteBuffer] {
+    val responseType = "arraybuffer"
     def pack(msg: ByteBuffer): Message = msg.arrayBuffer.slice(msg.position, msg.limit)
     def unpack(m: Message): Future[Option[ByteBuffer]] = (m: Any) match {
       case a: ArrayBuffer => Future.successful(Option(TypedArrayBuffer.wrap(a)))
