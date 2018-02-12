@@ -111,7 +111,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 
       def run() = {
         val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-        val route = api.asWsRoute(router, config)
+        val route = router.asWsRoute(config, api)
         Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
       }
     }

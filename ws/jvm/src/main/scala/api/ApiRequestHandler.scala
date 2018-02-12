@@ -9,24 +9,23 @@ import cats.syntax.either._
 import scala.concurrent.Future
 
 class ApiRequestHandler[PickleType, Event, ErrorType, State](
-  s: ApiConfiguration[Event, ErrorType, State],
-  dsl: Dsl[Event, ErrorType, State],
+  api: ApiConfiguration[Event, ErrorType, State],
   router: Router[PickleType, Dsl[Event, ErrorType, State]#ApiFunction]
 )(implicit
   scheduler: Scheduler
 ) extends FullRequestHandler[PickleType, Event, ErrorType, State] {
   import LogHelper._
 
-  def initialState = Future.successful(s.initialState)
+  def initialState = Future.successful(api.initialState)
 
   override def onClientConnect(client: NotifiableClient[Event], state: Future[State]): Unit = {
     scribe.info(s"${clientDesc(client)} started")
-    s.eventDistributor.subscribe(client)
+    api.eventDistributor.subscribe(client)
   }
 
   override def onClientDisconnect(client: NotifiableClient[Event], state: Future[State], reason: DisconnectReason): Unit = {
     scribe.info(s"${clientDesc(client)} stopped: $reason")
-    s.eventDistributor.unsubscribe(client)
+    api.eventDistributor.unsubscribe(client)
   }
 
   override def onRequest(client: NotifiableClient[Event], originalState: Future[State], path: List[String], payload: PickleType): Response = {
@@ -59,7 +58,7 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
         Response(newState, returnValue)
 
       case RouterResult.Failure(arguments, slothError) =>
-        val error = s.serverFailure(slothError)
+        val error = api.serverFailure(slothError)
         scribe.warn(s"${clientDesc(client)} -->[failure] ${requestLogLine(path, arguments, error)}. Took ${watch.readHuman}.")
         Response(state, Future.successful(ReturnValue(Left(error), Nil)))
 
@@ -71,8 +70,8 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
     val state = validateState(originalState)
     val result = for {
       state <- state
-      events <- s.adjustIncomingEvents(state, events)
-    } yield (s.applyEventsToState(state, events), events)
+      events <- api.adjustIncomingEvents(state, events)
+    } yield (api.applyEventsToState(state, events), events)
 
     val newState = result.map(_._1)
     val newEvents = result.map(_._2)
@@ -82,13 +81,13 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
   private def clientDesc(client: NotifiableClient[Event]): String = s"Client(${Integer.toString(client.hashCode, 36)})"
 
   private def validateState(state: Future[State]): Future[State] = state.flatMap { state =>
-    if (s.isStateValid(state)) Future.successful(state)
+    if (api.isStateValid(state)) Future.successful(state)
     else Future.failed(new Exception("State is invalid"))
   }
 
   private def filterAndDistributeEvents[T](client: NotifiableClient[Event])(rawEvents: Seq[Event]): List[Event] = {
-    val scoped = s.scopeOutgoingEvents(rawEvents.toList)
-    s.eventDistributor.publish(client, scoped.publicEvents)
+    val scoped = api.scopeOutgoingEvents(rawEvents.toList)
+    api.eventDistributor.publish(client, scoped.publicEvents)
     scoped.privateEvents
   }
 }
