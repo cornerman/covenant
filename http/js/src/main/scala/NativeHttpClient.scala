@@ -1,6 +1,7 @@
 package covenant.http
 
 import sloth._
+import covenant.core.DefaultLogHandler
 
 import org.scalajs.dom
 import scala.scalajs.js.typedarray.ArrayBuffer
@@ -13,25 +14,6 @@ import scala.concurrent.{Future, Promise, ExecutionContext}
 import scala.util.Try
 
 private[http] trait NativeHttpClient {
-  def apply[PickleType, ErrorType : ClientFailureConvert](
-    baseUri: String,
-    failedRequestError: (String, Int) => ErrorType,
-    recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty,
-    logger: LogHandler[EitherT[Future, ErrorType, ?]] = new LogHandler[EitherT[Future, ErrorType, ?]]
-  )(implicit
-    ec: ExecutionContext,
-    builder: JsMessageBuilder[PickleType]): Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType] = {
-
-    val transport = new RequestTransport[PickleType, EitherT[Future, ErrorType, ?]] {
-      private val sender = sendRequest[PickleType, ErrorType](baseUri, failedRequestError) _
-      def apply(request: Request[PickleType]) = EitherT[Future, ErrorType, PickleType] {
-        sender(request).recover(recover andThen Left.apply)
-      }
-    }
-
-    Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, logger)
-  }
-
   def apply[PickleType](
     baseUri: String,
     logger: LogHandler[Future]
@@ -51,12 +33,32 @@ private[http] trait NativeHttpClient {
 
     Client[PickleType, Future, ClientException](transport, logger)
   }
-
   def apply[PickleType](
     baseUri: String
   )(implicit
     ec: ExecutionContext,
-    builder: JsMessageBuilder[PickleType]): Client[PickleType, Future, ClientException] = apply[PickleType](baseUri, new LogHandler[Future])
+    builder: JsMessageBuilder[PickleType]): Client[PickleType, Future, ClientException] = {
+      apply[PickleType](baseUri, new DefaultLogHandler[Future](identity))
+    }
+
+  def apply[PickleType, ErrorType : ClientFailureConvert](
+    baseUri: String,
+    failedRequestError: (String, Int) => ErrorType,
+    recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty,
+    logger: LogHandler[EitherT[Future, ErrorType, ?]] = null
+  )(implicit
+    ec: ExecutionContext,
+    builder: JsMessageBuilder[PickleType]): Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType] = {
+
+    val transport = new RequestTransport[PickleType, EitherT[Future, ErrorType, ?]] {
+      private val sender = sendRequest[PickleType, ErrorType](baseUri, failedRequestError) _
+      def apply(request: Request[PickleType]) = EitherT[Future, ErrorType, PickleType] {
+        sender(request).recover(recover andThen Left.apply)
+      }
+    }
+
+    Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, if (logger == null) new DefaultLogHandler[EitherT[Future, ErrorType, ?]](_.value) else logger)
+  }
 
   private def sendRequest[PickleType, ErrorType](
     baseUri: String,

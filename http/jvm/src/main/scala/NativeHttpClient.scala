@@ -1,6 +1,7 @@
 package covenant.http
 
 import sloth._
+import covenant.core.DefaultLogHandler
 
 import akka.actor.ActorSystem
 import akka.util.ByteStringBuilder
@@ -16,28 +17,6 @@ import cats.implicits._
 import scala.concurrent.Future
 
 private[http] trait NativeHttpClient {
-  def apply[PickleType, ErrorType : ClientFailureConvert](
-    baseUri: String,
-    failedRequestError: (String, StatusCode) => ErrorType,
-    recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty,
-    logger: LogHandler[EitherT[Future, ErrorType, ?]] = new LogHandler[EitherT[Future, ErrorType, ?]]
-  )(implicit
-    system: ActorSystem,
-    materializer: ActorMaterializer,
-    unmarshaller: FromByteStringUnmarshaller[PickleType],
-    marshaller: ToEntityMarshaller[PickleType]): Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType] = {
-    import system.dispatcher
-
-    val transport = new RequestTransport[PickleType, EitherT[Future, ErrorType, ?]] {
-      private val sender = sendRequest[PickleType, ErrorType](baseUri, failedRequestError) _
-      def apply(request: Request[PickleType]) = EitherT[Future, ErrorType, PickleType] {
-        sender(request).recover(recover andThen Left.apply)
-      }
-    }
-
-    Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport)
-  }
-
   def apply[PickleType](
     baseUri: String,
     logger: LogHandler[Future]
@@ -58,16 +37,40 @@ private[http] trait NativeHttpClient {
       }
     }
 
-    Client[PickleType, Future, ClientException](transport)
+    Client[PickleType, Future, ClientException](transport, logger)
   }
-
   def apply[PickleType](
     baseUri: String
   )(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
     unmarshaller: FromByteStringUnmarshaller[PickleType],
-    marshaller: ToEntityMarshaller[PickleType]): Client[PickleType, Future, ClientException] = apply[PickleType](baseUri, new LogHandler[Future])
+    marshaller: ToEntityMarshaller[PickleType]): Client[PickleType, Future, ClientException] = {
+      import system.dispatcher
+      apply[PickleType](baseUri, new DefaultLogHandler[Future](identity))
+    }
+
+  def apply[PickleType, ErrorType : ClientFailureConvert](
+    baseUri: String,
+    failedRequestError: (String, StatusCode) => ErrorType,
+    recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty,
+    logger: LogHandler[EitherT[Future, ErrorType, ?]] = null
+  )(implicit
+    system: ActorSystem,
+    materializer: ActorMaterializer,
+    unmarshaller: FromByteStringUnmarshaller[PickleType],
+    marshaller: ToEntityMarshaller[PickleType]): Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType] = {
+    import system.dispatcher
+
+    val transport = new RequestTransport[PickleType, EitherT[Future, ErrorType, ?]] {
+      private val sender = sendRequest[PickleType, ErrorType](baseUri, failedRequestError) _
+      def apply(request: Request[PickleType]) = EitherT[Future, ErrorType, PickleType] {
+        sender(request).recover(recover andThen Left.apply)
+      }
+    }
+
+    Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, if (logger == null) new DefaultLogHandler[EitherT[Future, ErrorType, ?]](_.value) else logger)
+  }
 
   private def sendRequest[PickleType, ErrorType](
     baseUri: String,

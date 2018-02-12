@@ -90,7 +90,11 @@ object WsClient extends NativeWsClient {
   private def defaultHandler[Event](incidentSubject: PublishSubject[Incident[Event]]) = new IncidentHandler[Event] {
     override def onConnect(): Unit = { incidentSubject.onNext(Connected); () }
     override def onClose(): Unit = { incidentSubject.onNext(Closed); () }
-    override def onEvents(events: List[Event]): Unit = { incidentSubject.onNext(NewEvents(events)); () }
+    override def onEvents(events: List[Event]): Unit = {
+      scribe.info(s"<--[events] $events")
+      incidentSubject.onNext(NewEvents(events))
+      ()
+    }
   }
 
   sealed trait Incident[+Event]

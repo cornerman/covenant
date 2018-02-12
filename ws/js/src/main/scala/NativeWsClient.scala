@@ -1,6 +1,7 @@
 package covenant.ws
 
 import sloth._
+import covenant.core.DefaultLogHandler
 import mycelium.client._
 import mycelium.core._
 import mycelium.core.message._
@@ -31,13 +32,15 @@ private[ws] trait NativeWsClient {
     builder: JsMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
-  ): WsClient[PickleType, Future, Event, ErrorType, ClientException] = apply[PickleType, Event, ErrorType](uri, config, new LogHandler[Future])
+  ): WsClient[PickleType, Future, Event, ErrorType, ClientException] = {
+    apply[PickleType, Event, ErrorType](uri, config, new DefaultLogHandler[Future](identity))
+  }
 
   def apply[PickleType, Event, ErrorType : ClientFailureConvert](
     uri: String,
     config: WebsocketClientConfig,
     recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty,
-    logger: LogHandler[EitherT[Future, ErrorType, ?]] = new LogHandler[EitherT[Future, ErrorType, ?]]
+    logger: LogHandler[EitherT[Future, ErrorType, ?]] = null
   )(implicit
     ec: ExecutionContext,
     builder: JsMessageBuilder[PickleType],
@@ -45,6 +48,6 @@ private[ws] trait NativeWsClient {
     deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
   ): WsClient[PickleType, EitherT[Future, ErrorType, ?], Event, ErrorType, ErrorType] = {
     val connection = new JsWebsocketConnection
-    WsClient.fromConnection(uri, connection, config, recover, logger)
+    WsClient.fromConnection(uri, connection, config, recover, if (logger == null) new DefaultLogHandler[EitherT[Future, ErrorType, ?]](_.value) else logger)
   }
 }
