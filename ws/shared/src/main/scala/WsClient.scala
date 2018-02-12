@@ -23,11 +23,12 @@ abstract class WsClient[PickleType, Result[_], Event, Failure, ErrorType](
 ){
   import WsClient._
 
-  private val eventSubject = PublishSubject[Incident[Event]]()
-  protected val mycelium = WebsocketClient[PickleType, Event, Failure](connection, config, defaultHandler(eventSubject))
+  private val incidentSubject = PublishSubject[Incident[Event]]()
+  protected val mycelium = WebsocketClient[PickleType, Event, Failure](connection, config, defaultHandler(incidentSubject))
   mycelium.run(uri)
 
-  val observable: Observable[Incident[Event]] = eventSubject
+  val incidentObservable: Observable[Incident[Event]] = incidentSubject
+  val eventObservable: Observable[List[Event]] = incidentObservable.collect { case NewEvents(events) if events.nonEmpty => events }
 
   def sendWithDefault = sendWith()
 
@@ -82,10 +83,10 @@ object WsClient extends NativeWsClient {
     }
   }
 
-  private def defaultHandler[Event](eventSubject: PublishSubject[Incident[Event]]) = new IncidentHandler[Event] {
-    override def onConnect(): Unit = { eventSubject.onNext(Connected); () }
-    override def onClose(): Unit = { eventSubject.onNext(Closed); () }
-    override def onEvents(events: List[Event]): Unit = { eventSubject.onNext(NewEvents(events)); () }
+  private def defaultHandler[Event](incidentSubject: PublishSubject[Incident[Event]]) = new IncidentHandler[Event] {
+    override def onConnect(): Unit = { incidentSubject.onNext(Connected); () }
+    override def onClose(): Unit = { incidentSubject.onNext(Closed); () }
+    override def onEvents(events: List[Event]): Unit = { incidentSubject.onNext(NewEvents(events)); () }
   }
 
   sealed trait Incident[+Event]
