@@ -16,6 +16,7 @@ import cats.implicits._
 
 import scala.concurrent.Future
 
+//TODO from* factory
 private[http] trait NativeHttpClient {
   def apply[PickleType](
     baseUri: String,

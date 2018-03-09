@@ -14,6 +14,7 @@ import akka.actor.ActorSystem
 
 import scala.concurrent.Future
 
+//TODO from* factory
 private[ws] trait NativeWsClient {
   //TODO: configure?
   private val defaultBufferSize = 100

@@ -1,12 +1,14 @@
 package covenant.core.util
 
 object LogHelper {
-  def requestLogLine(path: List[String], arguments: List[List[Any]]): String = logLine(path, arguments, None)
-  def requestLogLine(path: List[String], arguments: List[List[Any]], result: Any): String = logLine(path, arguments, Some(result))
+  def requestLogLine(path: List[String]): String = logLine(path, None, None)
+  def requestLogLine(path: List[String], arguments: Product): String = logLine(path, Some(arguments), None)
+  def requestLogLine(path: List[String], arguments: Product, result: Any): String = logLine(path, Some(arguments), Some(result))
+  def requestLogLine(path: List[String], arguments: Option[Product], result: Any): String = logLine(path, arguments, Some(result))
 
-  private def logLine(path: List[String], arguments: List[List[Any]], result: Option[Any]): String = {
+  private def logLine(path: List[String], arguments: Option[Product], result: Option[Any]): String = {
     val pathString = path.mkString(".")
-    val argString = arguments.map(list => "(" + list.mkString(",") + ")").mkString
+    val argString = "(" + arguments.fold(List.empty[Any])(_.productIterator.toList).mkString(",") + ")"
     val request = pathString + argString
     result.fold(request)(result => s"$request = $result")
   }

@@ -62,6 +62,7 @@ lazy val core = crossProject.crossType(CrossType.Pure)
       Deps.sloth.value ::
       Deps.kittens.value ::
       Deps.scribe.value ::
+      Deps.monix.value ::
       Nil
   )
 
@@ -97,7 +98,6 @@ lazy val ws = crossProject
     name := "covenant-ws",
     libraryDependencies ++=
       Deps.mycelium.value ::
-      Deps.monix.value ::
       Nil
   )
 

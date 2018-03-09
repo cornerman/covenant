@@ -1,4 +1,4 @@
-package covenant.ws.api
+package covenant.core.api
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.annotation.tailrec
@@ -6,10 +6,10 @@ import scala.util.control.NonFatal
 import cats.implicits._
 import monix.reactive.Observable
 
-class Dsl[Event, ErrorType, State](
-  val applyEventsToState: (State, Seq[Event]) => State,
-  unhandledException: Throwable => ErrorType
-) {
+trait ApiDsl[Event, ErrorType, State] {
+  def applyEventsToState(state: State, events: Seq[Event]): State
+  def unhandledException(t: Throwable): ErrorType
+
   //TODO better availablity of types not in obj, package object because of type alias? but currently name clash with ApiDsl.Effect/Action => rename
   object ApiData {
     case class Action[+T](data: Either[ErrorType, T], asyncEvents: Observable[Seq[Event]] = Observable.empty)

@@ -8,7 +8,7 @@ import concurrent.Future
 trait EventDistributor[Event, State] {
   def subscribe(client: NotifiableClient[Event, State]): Unit
   def unsubscribe(client: NotifiableClient[Event, State]): Unit
-  def publish(origin: NotifiableClient[Event, State], events: List[Event]): Unit
+  def publish(events: List[Event], origin: Option[NotifiableClient[Event, State]] = None): Unit
 }
 
 class HashSetEventDistributor[Event, State] extends EventDistributor[Event, State] {
@@ -22,11 +22,11 @@ class HashSetEventDistributor[Event, State] extends EventDistributor[Event, Stat
     subscribers -= client
   }
 
-  def publish(origin: NotifiableClient[Event, State], events: List[Event]): Unit = if (events.nonEmpty) {
+  def publish(events: List[Event], origin: Option[NotifiableClient[Event, State]]): Unit = if (events.nonEmpty) {
     scribe.info(s"Event distributor (${subscribers.size - 1} clients): $events")
 
     subscribers.foreach { client =>
-      if (client != origin) client.notify(_ => Future.successful(events))
+      if (origin.fold(true)(_ != client)) client.notify(_ => Future.successful(events))
     }
   }
 }

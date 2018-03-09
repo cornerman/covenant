@@ -69,6 +69,7 @@ private[http] trait NativeHttpClient {
     val uri = (baseUri :: request.path).mkString("/")
     val promise = Promise[Either[ErrorType, PickleType]]
 
+    //TODO use fetch? can be intercepted by serviceworker.
     val http = new dom.XMLHttpRequest
     http.responseType = builder.responseType
     def failedRequest = failedRequestError(uri, http.status)

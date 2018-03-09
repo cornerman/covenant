@@ -2,6 +2,7 @@ package test
 
 import org.scalatest._
 
+import covenant.core.api._
 import covenant.ws._
 import sloth._
 import chameleon.ext.boopickle._
@@ -30,6 +31,34 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     def fun(a: Int): Future[Int] = Future.successful(a)
   }
 
+  object DslApiImpl extends Api[Dsl.ApiFunction] {
+    import Dsl._
+
+    def fun(a: Int): ApiFunction[Int] = Action { state =>
+      Future.successful(a)
+    }
+  }
+
+  //TODO generalize over this structure, can implement requesthander? --> apidsl
+  type Event = String
+  type State = String
+
+  case class ApiValue[T](result: T, events: List[Event])
+  case class ApiResult[T](state: Future[State], value: Future[ApiValue[T]])
+  type ApiResultFun[T] = Future[State] => ApiResult[T]
+
+  case class ApiError(msg: String)
+
+  implicit val apiValueFunctor = cats.derive.functor[ApiValue]
+  implicit val apiResultFunctor = cats.derive.functor[ApiResult]
+  implicit val apiResultFunFunctor = cats.derive.functor[ApiResultFun]
+
+  object Dsl extends ApiDsl[Event, ApiError, State] {
+    override def applyEventsToState(state: State, events: Seq[Event]): State = state + " " + events.mkString(",")
+    override def unhandledException(t: Throwable): ApiError = ApiError(t.getMessage)
+  }
+  //
+
   implicit val system = ActorSystem("mycelium")
   implicit val materializer = ActorMaterializer()
 
@@ -47,7 +76,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 
       def run() = {
         val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-        val route = router.asWsRoute[ApiError](config, failedRequestError = err => ApiError(err.toString))
+        val route = AkkaWsRoute.fromFutureRouter(router, config, failedRequestError = err => ApiError(err.toString))
         Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
       }
     }
@@ -69,67 +98,43 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     }
   }
 
-  //TODO generalize over this structure, can implement requesthander? --> apidsl
-  type Event = String
-  type State = String
 
-  case class ApiValue[T](result: T, events: List[Event])
-  case class ApiResult[T](state: Future[State], value: Future[ApiValue[T]])
-  type ApiResultFun[T] = Future[State] => ApiResult[T]
+ "run" in {
+   import covenant.ws.api._
+   import monix.execution.Scheduler.Implicits.global
 
-  case class ApiError(msg: String)
+   val api = new WsApiConfigurationWithDefaults[Event, ApiError, State] {
+     override def dsl = Dsl
+     override def initialState: State = ""
+     override def isStateValid(state: State): Boolean = true
+     override def serverFailure(error: ServerFailure): ApiError = ApiError(error.toString)
+   }
 
-  implicit val apiValueFunctor = cats.derive.functor[ApiValue]
-  implicit val apiResultFunctor = cats.derive.functor[ApiResult]
-  implicit val apiResultFunFunctor = cats.derive.functor[ApiResultFun]
-  //
+   object Backend {
+     val router = Router[ByteBuffer, Dsl.ApiFunction]
+       .route[Api[Dsl.ApiFunction]](DslApiImpl)
 
+     def run() = {
+       val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
+       val route = AkkaWsRoute.fromApiRouter(router, config, api)
+       Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
+     }
+   }
 
-  "run" in {
-    import covenant.ws.api._
-    import monix.execution.Scheduler.Implicits.global
+   object Frontend {
+     val config = WebsocketClientConfig()
+     val client = WsClient[ByteBuffer, Unit, ApiError](s"ws://localhost:$port/ws", config)
+     val api = client.sendWithDefault.wire[Api[Future]]
+   }
 
-    val api = new ApiConfigurationWithDefaults[Event, ApiError, State] {
-      override def initialState: State = ""
-      override def isStateValid(state: State): Boolean = true
-      override def applyEventsToState(state: State, events: Seq[Event]): State = state + " " + events.mkString(",")
-      override def serverFailure(error: ServerFailure): ApiError = ApiError(error.toString)
-      override def unhandledException(t: Throwable): ApiError = ApiError(t.getMessage)
-    }
+   Backend.run()
 
-    object ApiImpl extends Api[api.dsl.ApiFunction] {
-      import api.dsl._
-
-      def fun(a: Int): ApiFunction[Int] = Action { state =>
-        Future.successful(a)
-      }
-    }
-
-    object Backend {
-      val router = Router[ByteBuffer, api.dsl.ApiFunction]
-        .route[Api[api.dsl.ApiFunction]](ApiImpl)
-
-      def run() = {
-        val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-        val route = router.asWsRoute(config, api)
-        Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
-      }
-    }
-
-    object Frontend {
-      val config = WebsocketClientConfig()
-      val client = WsClient[ByteBuffer, Unit, ApiError](s"ws://localhost:$port/ws", config)
-      val api = client.sendWithDefault.wire[Api[Future]]
-    }
-
-    Backend.run()
-
-    for {
-      fun <- Frontend.api.fun(1)
-      fun2 <- Frontend.api.fun(1, 2)
-    } yield {
-      fun mustEqual 1
-      fun2 mustEqual 3
-    }
-  }
+   for {
+     fun <- Frontend.api.fun(1)
+     fun2 <- Frontend.api.fun(1, 2)
+   } yield {
+     fun mustEqual 1
+     fun2 mustEqual 3
+   }
+ }
 }

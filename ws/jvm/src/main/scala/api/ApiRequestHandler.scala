@@ -1,6 +1,7 @@
 package covenant.ws.api
 
 import covenant.core.util.StopWatch
+import covenant.core.api._
 import sloth._
 import mycelium.server._
 import monix.execution.Scheduler
@@ -8,13 +9,14 @@ import cats.syntax.either._
 
 import scala.concurrent.Future
 
+//TODO rename to WsRequestHandler, move to covenant.ws?
 class ApiRequestHandler[PickleType, Event, ErrorType, State](
-  api: ApiConfiguration[Event, ErrorType, State],
-  router: Router[PickleType, Dsl[Event, ErrorType, State]#ApiFunction]
+  api: WsApiConfiguration[Event, ErrorType, State],
+  router: Router[PickleType, ApiDsl[Event, ErrorType, State]#ApiFunction]
 )(implicit
   scheduler: Scheduler
 ) extends FullRequestHandler[PickleType, Event, ErrorType, State] {
-  import LogHelper._
+  import covenant.core.util.LogHelper._
 
   def initialState = Future.successful(api.initialState)
 
@@ -71,7 +73,7 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
     val result = for {
       state <- state
       events <- api.adjustIncomingEvents(state, events)
-    } yield (api.applyEventsToState(state, events), events)
+    } yield (api.dsl.applyEventsToState(state, events), events)
 
     val newState = result.map(_._1)
     val newEvents = result.map(_._2)
@@ -87,7 +89,7 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
 
   private def filterAndDistributeEvents[T](client: NotifiableClient[Event, State])(rawEvents: Seq[Event]): List[Event] = {
     val scoped = api.scopeOutgoingEvents(rawEvents.toList)
-    api.eventDistributor.publish(client, scoped.publicEvents)
+    api.eventDistributor.publish(scoped.publicEvents, origin = Some(client))
     scoped.privateEvents
   }
 }
