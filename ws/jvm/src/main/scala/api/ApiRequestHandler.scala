@@ -18,17 +18,17 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
 
   def initialState = Future.successful(api.initialState)
 
-  override def onClientConnect(client: NotifiableClient[Event], state: Future[State]): Unit = {
+  override def onClientConnect(client: NotifiableClient[Event, State], state: Future[State]): Unit = {
     scribe.info(s"${clientDesc(client)} started")
     api.eventDistributor.subscribe(client)
   }
 
-  override def onClientDisconnect(client: NotifiableClient[Event], state: Future[State], reason: DisconnectReason): Unit = {
+  override def onClientDisconnect(client: NotifiableClient[Event, State], state: Future[State], reason: DisconnectReason): Unit = {
     scribe.info(s"${clientDesc(client)} stopped: $reason")
     api.eventDistributor.unsubscribe(client)
   }
 
-  override def onRequest(client: NotifiableClient[Event], originalState: Future[State], path: List[String], payload: PickleType): Response = {
+  override def onRequest(client: NotifiableClient[Event, State], originalState: Future[State], path: List[String], payload: PickleType): Response = {
     scribe.info(s"${clientDesc(client)} <--[request] $path")
     val watch = StopWatch.started
 
@@ -51,7 +51,7 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
           val events = filterAndDistributeEvents(client)(rawEvents)
           if (events.nonEmpty) {
             scribe.info(s"${clientDesc(client)} -->[async] ${requestLogLine(path, arguments, events)}. Took ${watch.readHuman}.")
-            client.notify(events)
+            client.notify(_ => Future.successful(events))
           }
         }
 
@@ -65,7 +65,7 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
     }
   }
 
-  override def onEvent(client: NotifiableClient[Event], originalState: Future[State], events: List[Event]): Reaction = {
+  override def onEvent(client: NotifiableClient[Event, State], originalState: Future[State], events: List[Event]): Reaction = {
     scribe.info(s"${clientDesc(client)} <--[events] $events")
     val state = validateState(originalState)
     val result = for {
@@ -78,14 +78,14 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
     Reaction(newState, newEvents)
   }
 
-  private def clientDesc(client: NotifiableClient[Event]): String = s"Client(${Integer.toString(client.hashCode, 36)})"
+  private def clientDesc(client: NotifiableClient[Event, State]): String = s"Client(${Integer.toString(client.hashCode, 36)})"
 
   private def validateState(state: Future[State]): Future[State] = state.flatMap { state =>
     if (api.isStateValid(state)) Future.successful(state)
     else Future.failed(new Exception("State is invalid"))
   }
 
-  private def filterAndDistributeEvents[T](client: NotifiableClient[Event])(rawEvents: Seq[Event]): List[Event] = {
+  private def filterAndDistributeEvents[T](client: NotifiableClient[Event, State])(rawEvents: Seq[Event]): List[Event] = {
     val scoped = api.scopeOutgoingEvents(rawEvents.toList)
     api.eventDistributor.publish(client, scoped.publicEvents)
     scoped.privateEvents

@@ -13,14 +13,14 @@ trait ApiConfiguration[Event, ErrorType, State] {
   def serverFailure(error: ServerFailure): ErrorType
   def unhandledException(t: Throwable): ErrorType
 
-  def eventDistributor: EventDistributor[Event]
+  def eventDistributor: EventDistributor[Event, State]
   def scopeOutgoingEvents(events: List[Event]): ScopedEvents[Event]
   def adjustIncomingEvents(state: State, events: List[Event]): Future[List[Event]]
 
   final val dsl = new Dsl[Event, ErrorType, State](applyEventsToState, unhandledException)
 }
 trait ApiConfigurationWithDefaults[Event, ErrorType, State] extends ApiConfiguration[Event, ErrorType, State] {
-  override def eventDistributor = new HashSetEventDistributor[Event]
+  override def eventDistributor = new HashSetEventDistributor[Event, State]
   override def scopeOutgoingEvents(events: List[Event]) = ScopedEvents[Event](events, events)
   override def adjustIncomingEvents(state: State, events: List[Event]) = Future.successful(events)
 }
