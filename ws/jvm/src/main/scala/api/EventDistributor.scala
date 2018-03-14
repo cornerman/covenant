@@ -23,7 +23,7 @@ class HashSetEventDistributor[Event, State] extends EventDistributor[Event, Stat
   }
 
   def publish(events: List[Event], origin: Option[NotifiableClient[Event, State]]): Unit = if (events.nonEmpty) {
-    scribe.info(s"Event distributor (${subscribers.size - 1} clients): $events")
+    scribe.info(s"Event distributor (${subscribers.size} clients): $events from $origin")
 
     subscribers.foreach { client =>
       if (origin.fold(true)(_ != client)) client.notify(_ => Future.successful(events))
