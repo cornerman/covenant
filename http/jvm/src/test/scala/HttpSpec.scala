@@ -94,7 +94,7 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 
    val api = new HttpApiConfiguration[Event, ApiError, State] {
      override def requestToState(request: HttpRequest): Future[State] = Future.successful(request.toString)
-     override def publishEvents(events: Seq[Event]): Unit = ()
+     override def publishEvents(events: List[Event]): Unit = ()
    }
 
    object Backend {

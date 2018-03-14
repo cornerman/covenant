@@ -52,7 +52,7 @@ object AkkaHttpRoute {
              val rawResult = value.result.map(_.raw)
              val serializedResult = value.result.map(_.serialized)
              if (value.events.nonEmpty) {
-               api.publishEvents(value.events)
+               api.publishEvents(value.events.toList)
                scribe.info(s"http -->[response] ${requestLogLine(path, arguments, rawResult)} / ${value.events}. Took ${watch.readHuman}.")
              }
              //TODO map errors
@@ -62,7 +62,7 @@ object AkkaHttpRoute {
            apiResponse.asyncEvents.foreach { rawEvents =>
              if (rawEvents.nonEmpty) {
                scribe.info(s"http -->[async] ${requestLogLine(path, arguments, rawEvents)}. Took ${watch.readHuman}.")
-               api.publishEvents(rawEvents)
+               api.publishEvents(rawEvents.toList)
              }
            }
 

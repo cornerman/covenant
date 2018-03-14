@@ -8,5 +8,5 @@ import scala.concurrent.Future
 
 trait HttpApiConfiguration[Event, ErrorType, State] {
   def requestToState(request: HttpRequest): Future[State]
-  def publishEvents(events: Seq[Event]): Unit
+  def publishEvents(events: List[Event]): Unit
 }
