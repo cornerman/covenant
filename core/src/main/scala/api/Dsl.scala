@@ -68,12 +68,12 @@ trait ApiDsl[Event, ErrorType, State] {
     object Response {
       private val handleUserException: PartialFunction[Throwable, ErrorType] = {
         case NonFatal(e) =>
-          scribe.error(s"Exception in API method: $e")
+          scribe.error(s"Exception in API method: $e", e)
           unhandledException(e)
       }
       private val handleDelayedUserException: PartialFunction[Throwable, Observable[Seq[Event]]] = {
         case NonFatal(e) =>
-          scribe.error(s"Exception in API delayed events: $e")
+          scribe.error(s"Exception in API delayed events: $e", e)
           Observable.empty
       }
 
