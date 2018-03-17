@@ -62,14 +62,14 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
   implicit val system = ActorSystem("mycelium")
   implicit val materializer = ActorMaterializer()
 
-  val port = 9999
-
   override def afterAll(): Unit = {
     system.terminate()
     ()
   }
 
  "simple run" in {
+     val port = 9990
+
     object Backend {
       val router = Router[ByteBuffer, Future]
         .route[Api[Future]](FutureApiImpl)
@@ -102,6 +102,8 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
  "run" in {
    import covenant.ws.api._
    import monix.execution.Scheduler.Implicits.global
+
+   val port = 9991
 
    val api = new WsApiConfigurationWithDefaults[Event, ApiError, State] {
      override def dsl = Dsl

@@ -60,9 +60,10 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 
   implicit val system = ActorSystem("akkahttp")
   implicit val materializer = ActorMaterializer()
-  val port = 9998
 
  "simple run" in {
+    val port = 9989
+
     object Backend {
       val router = Router[ByteBuffer, Future]
         .route[Api[Future]](FutureApiImpl)
@@ -91,6 +92,8 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
  "run" in {
    import covenant.http.api._
    import monix.execution.Scheduler.Implicits.global
+
+   val port = 9988
 
    val api = new HttpApiConfiguration[Event, ApiError, State] {
      override def requestToState(request: HttpRequest): Future[State] = Future.successful(request.toString)
