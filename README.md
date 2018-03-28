@@ -39,7 +39,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.RouteResult._
 import covenant.http._
 
-Http().bindAndHandle(router.asHttpRoute, interface = "0.0.0.0", port = port)
+Http().bindAndHandle(AkkaHttpRoute.fromFutureRouter(router), interface = "0.0.0.0", port = port)
 ```
 
 ### Client
