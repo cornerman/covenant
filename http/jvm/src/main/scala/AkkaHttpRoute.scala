@@ -51,10 +51,8 @@ object AkkaHttpRoute {
            val returnValue = apiResponse.value.map { value =>
              val rawResult = value.result.map(_.raw)
              val serializedResult = value.result.map(_.serialized)
-             if (value.events.nonEmpty) {
-               api.publishEvents(value.events.toList)
-               scribe.info(s"http -->[response] ${requestLogLine(path, arguments, rawResult)} / ${value.events}. Took ${watch.readHuman}.")
-             }
+             if (value.events.nonEmpty) api.publishEvents(value.events.toList)
+              scribe.info(s"http -->[response] ${requestLogLine(path, arguments, rawResult)} / ${value.events}. Took ${watch.readHuman}.")
              //TODO map errors
              serializedResult.fold(err => complete(StatusCodes.BadRequest -> err.toString), complete(_))
            }

@@ -31,7 +31,6 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
   }
 
   override def onRequest(client: NotifiableClient[Event, State], originalState: Future[State], path: List[String], payload: PickleType): Response = {
-    scribe.info(s"${clientDesc(client)} <--[request] $path")
     val watch = StopWatch.started
 
     val state = validateState(originalState)
