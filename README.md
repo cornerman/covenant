@@ -34,7 +34,7 @@ val router = Router[ByteBuffer, Future].route[Api](ApiImpl)
 ```
 
 Plug the router into your [akka-http](https://github.com/akka/akka-http) server route:
-```
+```scala
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.RouteResult._
 import covenant.http._
