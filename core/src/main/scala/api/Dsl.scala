@@ -111,9 +111,9 @@ trait ApiDsl[Event, ErrorType, State] {
       state <- state
     } yield if (events.isEmpty) state else applyEventsToState(state, events)
 
-    implicit val apiReturnValueFunctor = cats.derive.functor[ReturnValue]
-    implicit def apiResponseFunctor(implicit ec: ExecutionContext) = cats.derive.functor[Response]
-    implicit def apiFunctionFunctor(implicit ec: ExecutionContext) = cats.derive.functor[ApiFunction]
+    implicit val apiReturnValueFunctor = cats.derived.semi.functor[ReturnValue]
+    implicit def apiResponseFunctor(implicit ec: ExecutionContext) = cats.derived.semi.functor[Response]
+    implicit def apiFunctionFunctor(implicit ec: ExecutionContext) = cats.derived.semi.functor[ApiFunction]
   }
 
   object Action extends ApiFunction.Factory[ApiData.Action] {

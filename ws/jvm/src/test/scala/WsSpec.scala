@@ -17,6 +17,7 @@ import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.actor.ActorSystem
 
 import cats.implicits._
+import cats.derived.auto.functor._
 
 import scala.concurrent.Future
 
@@ -48,10 +49,6 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
   type ApiResultFun[T] = Future[State] => ApiResult[T]
 
   case class ApiError(msg: String)
-
-  implicit val apiValueFunctor = cats.derive.functor[ApiValue]
-  implicit val apiResultFunctor = cats.derive.functor[ApiResult]
-  implicit val apiResultFunFunctor = cats.derive.functor[ApiResultFun]
 
   object Dsl extends ApiDsl[Event, ApiError, State] {
     override def applyEventsToState(state: State, events: Seq[Event]): State = state + " " + events.mkString(",")
