@@ -34,16 +34,18 @@ object ByteBufferImplicits {
 object AkkaHttpRoute {
    import covenant.core.util.LogHelper._
 
-   def fromApiRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller, Event, ErrorType, State](
-     router: Router[PickleType, ApiDsl[Event, ErrorType, State]#ApiFunction],
-     api: HttpApiConfiguration[Event, ErrorType, State])(implicit scheduler: Scheduler): Route = {
+   def fromApiRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller, Event, ErrorType, State, Result[_]](
+     router: Router[PickleType, Result],
+     api: HttpApiConfiguration[Event, ErrorType, State])(implicit
+     scheduler: Scheduler,
+     env: Result[_] <:< ApiDsl[Event, ErrorType, State]#ApiFunction[_]): Route = {
 
      requestFunctionToRouteWithHeaders[PickleType] { (r, httpRequest) =>
        val watch = StopWatch.started
        val state: Future[State] = api.requestToState(httpRequest)
        val path = httpRequest.getUri.toString.split("/").toList //TODO
 
-       router(r) match {
+       router(r).asInstanceOf[RouterResult[PickleType, ApiDsl[Event, ErrorType, State]#ApiFunction]] match {
          case RouterResult.Success(arguments, apiFunction) =>
            val apiResponse = apiFunction.run(state)
            val newState = apiResponse.state

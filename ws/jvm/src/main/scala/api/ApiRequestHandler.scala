@@ -10,11 +10,12 @@ import cats.syntax.either._
 import scala.concurrent.Future
 
 //TODO rename to WsRequestHandler, move to covenant.ws?
-class ApiRequestHandler[PickleType, Event, ErrorType, State](
+class ApiRequestHandler[PickleType, Event, ErrorType, State, Result[_]](
   api: WsApiConfiguration[Event, ErrorType, State],
-  router: Router[PickleType, ApiDsl[Event, ErrorType, State]#ApiFunction]
+  router: Router[PickleType, Result]
 )(implicit
-  scheduler: Scheduler
+  scheduler: Scheduler,
+  env: Result[_] <:< ApiDsl[Event, ErrorType, State]#ApiFunction[_]
 ) extends FullRequestHandler[PickleType, Event, ErrorType, State] {
   import covenant.core.util.LogHelper._
 
@@ -34,7 +35,8 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
     val watch = StopWatch.started
 
     val state = validateState(originalState)
-    router(Request(path, payload)) match {
+    val request = Request(path, payload)
+    router(request).asInstanceOf[RouterResult[PickleType, ApiDsl[Event, ErrorType, State]#ApiFunction]] match {
 
       case RouterResult.Success(arguments, apiFunction) =>
         val apiResponse = apiFunction.run(state)
