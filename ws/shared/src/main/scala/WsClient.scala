@@ -4,14 +4,14 @@ import sloth._
 import mycelium.client._
 import mycelium.core.message._
 import chameleon._
-
 import monix.reactive.subjects.PublishSubject
 import monix.reactive.Observable
 import cats.data.EitherT
 import cats.implicits._
+import monix.execution.Scheduler
 
 import scala.concurrent.duration._
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.{ExecutionContext, Future}
 
 abstract class WsClient[PickleType, Result[_], Event, Failure, ErrorType](
   uri: String,
@@ -36,7 +36,7 @@ abstract class WsClient[PickleType, Result[_], Event, Failure, ErrorType](
 
   def sendWithDefault = sendWith()
 
-  def sendWith(sendType: SendType = SendType.WhenConnected, requestTimeout: FiniteDuration = 30 seconds): Client[PickleType, Result, ErrorType]
+  def sendWith(sendType: SendType = SendType.WhenConnected, requestTimeout: Option[FiniteDuration] = Some(30 seconds)): Client[PickleType, Result, ErrorType]
 }
 object WsClient extends NativeWsClient {
 
@@ -46,15 +46,15 @@ object WsClient extends NativeWsClient {
     config: WebsocketClientConfig,
     logger: LogHandler[Future]
   )(implicit
-    ec: ExecutionContext,
+    scheduler: Scheduler,
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
   ) = new WsClient[PickleType, Future, Event, ErrorType, ClientException](uri, connection, config) {
 
-    def sendWith(sendType: SendType, requestTimeout: FiniteDuration) = {
+    def sendWith(sendType: SendType, requestTimeout: Option[FiniteDuration]) = {
       val transport = new RequestTransport[PickleType, Future] {
         def apply(request: Request[PickleType]): Future[PickleType] = {
-          mycelium.send(request.path, request.payload, sendType, requestTimeout).flatMap {
+          mycelium.send(request.path, request.payload, sendType, requestTimeout).lastL.runAsync.flatMap {
             case Right(res) => Future.successful(res)
             case Left(err) => Future.failed(new Exception(s"Websocket request failed: $err"))
           }
@@ -72,15 +72,15 @@ object WsClient extends NativeWsClient {
     recover: PartialFunction[Throwable, ErrorType],
     logger: LogHandler[EitherT[Future, ErrorType, ?]]
   )(implicit
-    ec: ExecutionContext,
+    scheduler: Scheduler,
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
   ) = new WsClient[PickleType, EitherT[Future, ErrorType, ?], Event, ErrorType, ErrorType](uri, connection, config) {
 
-    def sendWith(sendType: SendType, requestTimeout: FiniteDuration) = {
+    def sendWith(sendType: SendType, requestTimeout: Option[FiniteDuration]) = {
       val transport = new RequestTransport[PickleType, EitherT[Future, ErrorType, ?]] {
         def apply(request: Request[PickleType]): EitherT[Future, ErrorType, PickleType] =
-          EitherT(mycelium.send(request.path, request.payload, sendType, requestTimeout).recover(recover andThen Left.apply))
+          EitherT(mycelium.send(request.path, request.payload, sendType, requestTimeout).lastL.runAsync.recover(recover andThen Left.apply))
       }
 
       Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, logger)

@@ -7,8 +7,9 @@ import mycelium.core._
 import mycelium.core.message._
 import chameleon._
 import cats.data.EitherT
+import monix.execution.Scheduler
 
-import scala.concurrent.{Future, ExecutionContext}
+import scala.concurrent.Future
 
 private[ws] trait NativeWsClient {
   def apply[PickleType, Event, ErrorType](
@@ -16,7 +17,7 @@ private[ws] trait NativeWsClient {
     config: WebsocketClientConfig,
     logger: LogHandler[Future]
   )(implicit
-    ec: ExecutionContext,
+    scheduler: Scheduler,
     builder: JsMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
@@ -28,7 +29,7 @@ private[ws] trait NativeWsClient {
     uri: String,
     config: WebsocketClientConfig
   )(implicit
-    ec: ExecutionContext,
+    scheduler: Scheduler,
     builder: JsMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
@@ -42,7 +43,7 @@ private[ws] trait NativeWsClient {
     recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty,
     logger: LogHandler[EitherT[Future, ErrorType, ?]] = null
   )(implicit
-    ec: ExecutionContext,
+    scheduler: Scheduler,
     builder: JsMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]

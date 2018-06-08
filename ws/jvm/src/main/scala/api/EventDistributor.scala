@@ -1,32 +1,34 @@
 package covenant.ws.api
 
 import mycelium.server._
+import monix.reactive.subjects.{Subject, PublishSubject}
 
 import scala.collection.mutable
 import concurrent.Future
 
-trait EventDistributor[Event, State] {
-  def subscribe(client: NotifiableClient[Event, State]): Unit
-  def unsubscribe(client: NotifiableClient[Event, State]): Unit
-  def publish(events: List[Event], origin: Option[NotifiableClient[Event, State]] = None): Unit
+trait EventDistributor[Event] {
+  def subscribe(client: NotifiableClient[Event]): Unit
+  def unsubscribe(client: NotifiableClient[Event]): Unit
+  def publish(events: List[Event], origin: Option[NotifiableClient[Event]] = None): Unit
 }
 
-class HashSetEventDistributor[Event, State] extends EventDistributor[Event, State] {
-  val subscribers = mutable.HashSet.empty[NotifiableClient[Event, State]]
+class HashSetEventDistributor[Event](notify: NotifiableClient[Event] => List[Event] => Unit) extends EventDistributor[Event] {
+  private val subscribers = mutable.HashMap.empty[NotifiableClient[Event], PublishSubject[List[Event]]]
 
-  def subscribe(client: NotifiableClient[Event, State]): Unit = {
-    subscribers += client
+  def subscribe(client: NotifiableClient[Event]): Unit = {
+    subscribers += client -> PublishSubject[List[Event]]()
   }
 
-  def unsubscribe(client: NotifiableClient[Event, State]): Unit = {
-    subscribers -= client
+  def unsubscribe(client: NotifiableClient[Event]): Unit = {
+    val removed = subscribers.remove(client)
+    removed.foreach { _.onComplete() }
   }
 
-  def publish(events: List[Event], origin: Option[NotifiableClient[Event, State]]): Unit = if (events.nonEmpty) {
+  def publish(events: List[Event], origin: Option[NotifiableClient[Event]]): Unit = if (events.nonEmpty) {
     scribe.info(s"Event distributor (${subscribers.size} clients): $events from $origin")
 
-    subscribers.foreach { client =>
-      if (origin.fold(true)(_ != client)) client.notify(_ => Future.successful(events))
+    subscribers.keys.foreach { client =>
+      if (origin.fold(true)(_ != client)) notify(client)(events)
     }
   }
 }

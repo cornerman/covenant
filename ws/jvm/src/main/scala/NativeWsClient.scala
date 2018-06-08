@@ -8,9 +8,9 @@ import mycelium.core._
 import mycelium.core.message._
 import chameleon._
 import cats.data.EitherT
-
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import akka.actor.ActorSystem
+import monix.execution.Scheduler
 
 import scala.concurrent.Future
 
@@ -27,6 +27,7 @@ private[ws] trait NativeWsClient {
   )(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
+    scheduler: Scheduler,
     builder: AkkaMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
@@ -41,11 +42,11 @@ private[ws] trait NativeWsClient {
   )(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
+    scheduler: Scheduler,
     builder: AkkaMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
   ): WsClient[PickleType, Future, Event, ErrorType, ClientException] = {
-    import system.dispatcher
     apply[PickleType, Event, ErrorType](uri, config, new DefaultLogHandler[Future](identity))
   }
 
@@ -57,11 +58,11 @@ private[ws] trait NativeWsClient {
   )(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
+    scheduler: Scheduler,
     builder: AkkaMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
   ): WsClient[PickleType, EitherT[Future, ErrorType, ?], Event, ErrorType, ErrorType] = {
-    import system.dispatcher
     val connection = new AkkaWebsocketConnection(defaultBufferSize, defaultOverflowStrategy)
     WsClient.fromConnection(uri, connection, config, recover, if (logger == null) new DefaultLogHandler[EitherT[Future, ErrorType, ?]](_.value) else logger)
   }

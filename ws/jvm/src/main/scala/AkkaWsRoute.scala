@@ -19,6 +19,7 @@ import scala.concurrent.Future
 object AkkaWsRoute {
   def fromRouter[PickleType : AkkaMessageBuilder, Result[_], Event, ErrorType, State](router: Router[PickleType, Result], config: WebsocketServerConfig, handler: RequestHandler[PickleType, Event, ErrorType, State])(implicit
     system: ActorSystem,
+    scheduler: Scheduler,
     serializer: Serializer[ServerMessage[PickleType, Event, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
 
@@ -33,8 +34,8 @@ object AkkaWsRoute {
     config: WebsocketServerConfig,
     api: WsApiConfiguration[Event, ErrorType, State]
   )(implicit
-    scheduler: Scheduler,
     system: ActorSystem,
+    scheduler: Scheduler,
     serializer: Serializer[ServerMessage[PickleType, Event, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[PickleType], PickleType],
     env: Result[_] <:< ApiDsl[Event, ErrorType, State]#ApiFunction[_]) = {
@@ -48,9 +49,9 @@ object AkkaWsRoute {
     config: WebsocketServerConfig,
     failedRequestError: ServerFailure => ErrorType)(implicit
     system: ActorSystem,
+    scheduler: Scheduler,
     serializer: Serializer[ServerMessage[PickleType, Unit, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
-    import system.dispatcher
 
     val handler = new SimpleStatelessRequestHandler[PickleType, Unit, ErrorType] {
       override def onClientConnect(): Unit = {
@@ -63,9 +64,9 @@ object AkkaWsRoute {
         router(Request(path, payload)).toEither match {
           case Right(res) =>
             val recoveredResult = res.map(Right(_)).recover { case t => Left(failedRequestError(ServerFailure.HandlerError(t))) }
-            Response(recoveredResult.map(ReturnValue(_)))
+            Response(recoveredResult)
           case Left(err) =>
-            Response(Future.successful(ReturnValue(Left(failedRequestError(err)))))
+            Response(Future.successful(Left(failedRequestError(err))))
         }
       }
     }
@@ -78,9 +79,9 @@ object AkkaWsRoute {
     config: WebsocketServerConfig,
     failedRequestError: ServerFailure => ErrorType)(implicit
     system: ActorSystem,
+    scheduler: Scheduler,
     serializer: Serializer[ServerMessage[PickleType, Unit, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
-    import system.dispatcher
 
     val handler = new SimpleStatelessRequestHandler[PickleType, Unit, ErrorType] {
       override def onClientConnect(): Unit = {
@@ -93,8 +94,8 @@ object AkkaWsRoute {
         router(Request(path, payload)).toEither match {
           case Right(res) =>
             val recoveredResult = res.value.recover { case t => Left(failedRequestError(ServerFailure.HandlerError(t))) }
-            Response(recoveredResult.map(ReturnValue(_)))
-          case Left(err) => Response(Future.successful(ReturnValue(Left(failedRequestError(err)))))
+            Response(recoveredResult)
+          case Left(err) => Response(Future.successful(Left(failedRequestError(err))))
         }
       }
     }
