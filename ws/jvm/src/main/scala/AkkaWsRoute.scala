@@ -8,11 +8,11 @@ import mycelium.core.message._
 import mycelium.server._
 import chameleon._
 import cats.data.EitherT
-
 import akka.actor.ActorSystem
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.Directives._
 import monix.execution.Scheduler
+import monix.reactive.Observable
 
 import scala.concurrent.Future
 
@@ -101,5 +101,35 @@ object AkkaWsRoute {
     }
 
     fromRouter[PickleType, EitherT[Future, ErrorType, ?], Unit, ErrorType, Unit](router, config, handler)
+  }
+
+  def fromObservableRouter[PickleType : AkkaMessageBuilder, ErrorType](
+    router: Router[PickleType, Observable],
+    config: WebsocketServerConfig,
+    failedRequestError: ServerFailure => ErrorType)(implicit
+    system: ActorSystem,
+    scheduler: Scheduler,
+    serializer: Serializer[ServerMessage[PickleType, Unit, ErrorType], PickleType],
+    deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
+
+    val handler = new SimpleStatelessRequestHandler[PickleType, Unit, ErrorType] {
+      override def onClientConnect(): Unit = {
+        scribe.info("Client connected")
+      }
+      override def onClientDisconnect(reason: DisconnectReason): Unit = {
+        scribe.info(s"Client disconnected: $reason")
+      }
+      override def onRequest(path: List[String], payload: PickleType): Response = {
+        router(Request(path, payload)).toEither match {
+          case Right(res) =>
+            val recoveredResult = res.map(Right(_)).onErrorHandle(t => Left(failedRequestError(ServerFailure.HandlerError(t))))
+            Response(recoveredResult)
+          case Left(err) =>
+            Response(Future.successful(Left(failedRequestError(err))))
+        }
+      }
+    }
+
+    fromRouter[PickleType, Observable, Unit, ErrorType, Unit](router, config, handler)
   }
 }

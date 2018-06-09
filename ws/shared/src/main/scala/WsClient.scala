@@ -54,14 +54,39 @@ object WsClient extends NativeWsClient {
     def sendWith(sendType: SendType, requestTimeout: Option[FiniteDuration]) = {
       val transport = new RequestTransport[PickleType, Future] {
         def apply(request: Request[PickleType]): Future[PickleType] = {
-          mycelium.send(request.path, request.payload, sendType, requestTimeout).lastL.runAsync.flatMap {
-            case Right(res) => Future.successful(res)
-            case Left(err) => Future.failed(new Exception(s"Websocket request failed: $err"))
+          mycelium.send(request.path, request.payload, sendType, requestTimeout).lastL.runAsync.map {
+            case Right(res) => res
+            case Left(err) => throw new Exception(s"Websocket request failed: $err")
           }
         }
       }
 
       Client[PickleType, Future, ClientException](transport, logger)
+    }
+  }
+
+  def fromStreamableConnection[PickleType, Event, ErrorType](
+    uri: String,
+    connection: WebsocketConnection[PickleType],
+    config: WebsocketClientConfig,
+    logger: LogHandler[Observable]
+  )(implicit
+    scheduler: Scheduler,
+    serializer: Serializer[ClientMessage[PickleType], PickleType],
+    deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
+  ) = new WsClient[PickleType, Observable, Event, ErrorType, ClientException](uri, connection, config) {
+
+    def sendWith(sendType: SendType, requestTimeout: Option[FiniteDuration]) = {
+      val transport = new RequestTransport[PickleType, Observable] {
+        def apply(request: Request[PickleType]): Observable[PickleType] = {
+          mycelium.send(request.path, request.payload, sendType, requestTimeout).map {
+            case Right(res) => res
+            case Left(err) => throw new Exception(s"Websocket request failed: $err")
+          }
+        }
+      }
+
+      Client[PickleType, Observable, ClientException](transport, logger)
     }
   }
 

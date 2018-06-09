@@ -48,7 +48,7 @@ private[http] trait NativeHttpClient {
     unmarshaller: FromByteStringUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]): Client[PickleType, Future, ClientException] = {
       import system.dispatcher
-      apply[PickleType](baseUri, new DefaultLogHandler[Future](identity))
+      apply[PickleType](baseUri, new DefaultLogHandler[Future])
     }
 
   def apply[PickleType, ErrorType : ClientFailureConvert](
@@ -70,7 +70,7 @@ private[http] trait NativeHttpClient {
       }
     }
 
-    Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, if (logger == null) new DefaultLogHandler[EitherT[Future, ErrorType, ?]](_.value) else logger)
+    Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, if (logger == null) new DefaultLogHandler[EitherT[Future, ErrorType, ?]] else logger)
   }
 
   private def sendRequest[PickleType, ErrorType](
