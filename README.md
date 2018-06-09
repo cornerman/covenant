@@ -4,6 +4,15 @@ Simply create HTTP or Websocket Server and client in scala.
 
 Server-side is JVM only and uses akka, client-side additionally supports scala-js.
 
+Get via jitpack (add the following to your `build.sbt`):
+```scala
+resolvers += "jitpack" at "https://jitpack.io"
+libraryDependencies ++= Seq(
+  "com.github.cornerman.covenant" %%% "covenant-http" % "master-SNAPSHOT",
+  "com.github.cornerman.covenant" %%% "covenant-ws" % "master-SNAPSHOT"
+)
+```
+
 ## Http
 
 Define a trait as your `Api`:
