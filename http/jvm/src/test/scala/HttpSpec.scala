@@ -14,6 +14,7 @@ import akka.http.scaladsl.server.RouteResult._
 import akka.http.scaladsl.model._
 import akka.stream.ActorMaterializer
 import akka.actor.ActorSystem
+import monix.reactive.Observable
 
 import cats.implicits._
 import cats.derived.auto.functor._
@@ -31,11 +32,20 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     def fun(a: Int): Future[Int] = Future.successful(a)
   }
 
-  object DslApiImpl extends Api[Dsl.ApiFunction] {
+  trait StreamAndFutureApi[Result[R[_], _]] {
+    def foo(a: Int): Result[Future, Int]
+    def bar(a: Int): Result[Observable, Int]
+  }
+
+  object DslApiImpl extends StreamAndFutureApi[Dsl.ApiFunction] {
     import Dsl._
 
-    def fun(a: Int): ApiFunction[Int] = Action { state =>
-      Future.successful(a)
+    def foo(a: Int): ApiFunction[Future, Int] = ApiFunction { state =>
+      ApiResult(Future.successful(a))
+    }
+
+    def bar(a: Int): ApiFunction[Observable, Int] = ApiFunction.stream { state =>
+      ApiResult(Observable(a))
     }
   }
 
@@ -43,17 +53,9 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
   type Event = String
   type State = String
 
-  case class ApiValue[T](result: T, events: List[Event])
-  case class ApiResult[T](state: Future[State], value: Future[ApiValue[T]])
-  type ApiResultFun[T] = Future[State] => ApiResult[T]
-
   case class ApiError(msg: String)
 
-  object Dsl extends ApiDsl[Event, ApiError, State] {
-    override def applyEventsToState(state: State, events: Seq[Event]): State = state + " " + events.mkString(",")
-    override def unhandledException(t: Throwable): ApiError = ApiError(t.getMessage)
-  }
-  //
+  object Dsl extends ApiDsl[Event, ApiError, State]
 
   implicit val system = ActorSystem("akkahttp")
   implicit val materializer = ActorMaterializer()
@@ -93,13 +95,14 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
    val port = 9988
 
    val api = new HttpApiConfiguration[Event, ApiError, State] {
+     val dsl = Dsl
      override def requestToState(request: HttpRequest): Future[State] = Future.successful(request.toString)
-     override def publishEvents(events: List[Event]): Unit = ()
+     override def publishEvents(events: Observable[List[Event]]): Unit = ()
    }
 
    object Backend {
-     val router = Router[ByteBuffer, Dsl.ApiFunction]
-       .route[Api[Dsl.ApiFunction]](DslApiImpl)
+     val router = Router[ByteBuffer, Dsl.ApiFunctionT]
+       .route[StreamAndFutureApi[Dsl.ApiFunction]](DslApiImpl)
 
      def run() = {
        val route = AkkaHttpRoute.fromApiRouter(router, api)

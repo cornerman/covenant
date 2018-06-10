@@ -14,7 +14,7 @@ import cats.implicits._
 import scala.concurrent.Future
 
 private[ws] trait NativeWsClient {
-  def apply[PickleType, Event, ErrorType](
+  def apply[PickleType, ErrorType](
     uri: String,
     config: WebsocketClientConfig,
     logger: LogHandler[Future]
@@ -22,24 +22,24 @@ private[ws] trait NativeWsClient {
     scheduler: Scheduler,
     builder: JsMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
-    deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
-  ): WsClient[PickleType, Future, Event, ErrorType, ClientException] = {
+    deserializer: Deserializer[ServerMessage[PickleType, ErrorType], PickleType]
+  ): WsClient[PickleType, Future, ErrorType, ClientException] = {
     val connection = new JsWebsocketConnection
     WsClient.fromConnection(uri, connection, config, logger)
   }
-  def apply[PickleType, Event, ErrorType](
+  def apply[PickleType, ErrorType](
     uri: String,
     config: WebsocketClientConfig
   )(implicit
     scheduler: Scheduler,
     builder: JsMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
-    deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
-  ): WsClient[PickleType, Future, Event, ErrorType, ClientException] = {
-    apply[PickleType, Event, ErrorType](uri, config, new DefaultLogHandler[Future])
+    deserializer: Deserializer[ServerMessage[PickleType, ErrorType], PickleType]
+  ): WsClient[PickleType, Future, ErrorType, ClientException] = {
+    apply[PickleType, ErrorType](uri, config, new DefaultLogHandler[Future])
   }
 
-  def streamable[PickleType, Event, ErrorType](
+  def streamable[PickleType, ErrorType](
     uri: String,
     config: WebsocketClientConfig,
     logger: LogHandler[Observable]
@@ -47,24 +47,24 @@ private[ws] trait NativeWsClient {
     scheduler: Scheduler,
     builder: JsMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
-    deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
-  ): WsClient[PickleType, Observable, Event, ErrorType, ClientException] = {
+    deserializer: Deserializer[ServerMessage[PickleType, ErrorType], PickleType]
+  ): WsClient[PickleType, Observable, ErrorType, ClientException] = {
     val connection = new JsWebsocketConnection
     WsClient.fromStreamableConnection(uri, connection, config, logger)
   }
-  def streamable[PickleType, Event, ErrorType](
+  def streamable[PickleType, ErrorType](
     uri: String,
     config: WebsocketClientConfig
   )(implicit
     scheduler: Scheduler,
     builder: JsMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
-    deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
-  ): WsClient[PickleType, Observable, Event, ErrorType, ClientException] = {
-    streamable[PickleType, Event, ErrorType](uri, config, new DefaultLogHandler[Observable])
+    deserializer: Deserializer[ServerMessage[PickleType, ErrorType], PickleType]
+  ): WsClient[PickleType, Observable, ErrorType, ClientException] = {
+    streamable[PickleType, ErrorType](uri, config, new DefaultLogHandler[Observable])
   }
 
-  def apply[PickleType, Event, ErrorType : ClientFailureConvert](
+  def apply[PickleType, ErrorType : ClientFailureConvert](
     uri: String,
     config: WebsocketClientConfig,
     recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty,
@@ -73,8 +73,8 @@ private[ws] trait NativeWsClient {
     scheduler: Scheduler,
     builder: JsMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
-    deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
-  ): WsClient[PickleType, EitherT[Future, ErrorType, ?], Event, ErrorType, ErrorType] = {
+    deserializer: Deserializer[ServerMessage[PickleType, ErrorType], PickleType]
+  ): WsClient[PickleType, EitherT[Future, ErrorType, ?], ErrorType, ErrorType] = {
     val connection = new JsWebsocketConnection
     WsClient.fromConnection(uri, connection, config, recover, if (logger == null) new DefaultLogHandler[EitherT[Future, ErrorType, ?]] else logger)
   }

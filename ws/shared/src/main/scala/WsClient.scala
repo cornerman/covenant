@@ -13,34 +13,25 @@ import monix.execution.Scheduler
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
-abstract class WsClient[PickleType, Result[_], Event, Failure, ErrorType](
+abstract class WsClient[PickleType, Result[_], Failure, ErrorType](
   uri: String,
   connection: WebsocketConnection[PickleType],
   config: WebsocketClientConfig)
 (implicit
   serializer: Serializer[ClientMessage[PickleType], PickleType],
-  deserializer: Deserializer[ServerMessage[PickleType, Event, Failure], PickleType]
+  deserializer: Deserializer[ServerMessage[PickleType, Failure], PickleType]
 ){
-  import WsClient._
-
-  private val incidentSubject = PublishSubject[Incident[Event]]()
-  protected val mycelium = WebsocketClient[PickleType, Event, Failure](connection, config, defaultHandler(incidentSubject))
+  protected val mycelium = WebsocketClient[PickleType, Failure](connection, config)
   mycelium.run(uri)
 
-  object observable {
-    val incident: Observable[Incident[Event]] = incidentSubject
-    val event: Observable[List[Event]] = incident.collect { case NewEvents(events) if events.nonEmpty => events }
-    val connected: Observable[Connected.type] = incident.collect { case Connected => Connected }
-    val closed: Observable[Closed.type] = incident.collect { case Closed => Closed }
-  }
+  def observable = mycelium.observable
 
   def sendWithDefault = sendWith()
-
   def sendWith(sendType: SendType = SendType.WhenConnected, requestTimeout: Option[FiniteDuration] = Some(30 seconds)): Client[PickleType, Result, ErrorType]
 }
 object WsClient extends NativeWsClient {
 
-  def fromConnection[PickleType, Event, ErrorType](
+  def fromConnection[PickleType, ErrorType](
     uri: String,
     connection: WebsocketConnection[PickleType],
     config: WebsocketClientConfig,
@@ -48,8 +39,8 @@ object WsClient extends NativeWsClient {
   )(implicit
     scheduler: Scheduler,
     serializer: Serializer[ClientMessage[PickleType], PickleType],
-    deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
-  ) = new WsClient[PickleType, Future, Event, ErrorType, ClientException](uri, connection, config) {
+    deserializer: Deserializer[ServerMessage[PickleType, ErrorType], PickleType]
+  ) = new WsClient[PickleType, Future, ErrorType, ClientException](uri, connection, config) {
 
     def sendWith(sendType: SendType, requestTimeout: Option[FiniteDuration]) = {
       val transport = new RequestTransport[PickleType, Future] {
@@ -65,7 +56,7 @@ object WsClient extends NativeWsClient {
     }
   }
 
-  def fromStreamableConnection[PickleType, Event, ErrorType](
+  def fromStreamableConnection[PickleType, ErrorType](
     uri: String,
     connection: WebsocketConnection[PickleType],
     config: WebsocketClientConfig,
@@ -73,8 +64,8 @@ object WsClient extends NativeWsClient {
   )(implicit
     scheduler: Scheduler,
     serializer: Serializer[ClientMessage[PickleType], PickleType],
-    deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
-  ) = new WsClient[PickleType, Observable, Event, ErrorType, ClientException](uri, connection, config) {
+    deserializer: Deserializer[ServerMessage[PickleType, ErrorType], PickleType]
+  ) = new WsClient[PickleType, Observable, ErrorType, ClientException](uri, connection, config) {
 
     def sendWith(sendType: SendType, requestTimeout: Option[FiniteDuration]) = {
       val transport = new RequestTransport[PickleType, Observable] {
@@ -90,7 +81,7 @@ object WsClient extends NativeWsClient {
     }
   }
 
-  def fromConnection[PickleType, Event, ErrorType : ClientFailureConvert](
+  def fromConnection[PickleType, ErrorType : ClientFailureConvert](
     uri: String,
     connection: WebsocketConnection[PickleType],
     config: WebsocketClientConfig,
@@ -99,8 +90,8 @@ object WsClient extends NativeWsClient {
   )(implicit
     scheduler: Scheduler,
     serializer: Serializer[ClientMessage[PickleType], PickleType],
-    deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
-  ) = new WsClient[PickleType, EitherT[Future, ErrorType, ?], Event, ErrorType, ErrorType](uri, connection, config) {
+    deserializer: Deserializer[ServerMessage[PickleType, ErrorType], PickleType]
+  ) = new WsClient[PickleType, EitherT[Future, ErrorType, ?], ErrorType, ErrorType](uri, connection, config) {
 
     def sendWith(sendType: SendType, requestTimeout: Option[FiniteDuration]) = {
       val transport = new RequestTransport[PickleType, EitherT[Future, ErrorType, ?]] {
@@ -111,20 +102,5 @@ object WsClient extends NativeWsClient {
       Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, logger)
     }
   }
-
-  private def defaultHandler[Event](incidentSubject: PublishSubject[Incident[Event]]) = new IncidentHandler[Event] {
-    override def onConnect(): Unit = { incidentSubject.onNext(Connected); () }
-    override def onClose(): Unit = { incidentSubject.onNext(Closed); () }
-    override def onEvents(events: List[Event]): Unit = {
-      scribe.info(s"<--[events] $events")
-      incidentSubject.onNext(NewEvents(events))
-      ()
-    }
-  }
-
-  sealed trait Incident[+Event]
-  case object Connected extends Incident[Nothing]
-  case object Closed extends Incident[Nothing]
-  case class NewEvents[+Event](events: List[Event]) extends Incident[Event]
 }
 

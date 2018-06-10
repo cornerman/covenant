@@ -17,13 +17,13 @@ import monix.reactive.Observable
 import scala.concurrent.Future
 
 object AkkaWsRoute {
-  def fromRouter[PickleType : AkkaMessageBuilder, Result[_], Event, ErrorType, State](router: Router[PickleType, Result], config: WebsocketServerConfig, handler: RequestHandler[PickleType, Event, ErrorType, State])(implicit
+  def fromRouter[PickleType : AkkaMessageBuilder, Result[_], Event, ErrorType, State](router: Router[PickleType, Result], config: WebsocketServerConfig, handler: RequestHandler[PickleType, ErrorType, State])(implicit
     system: ActorSystem,
     scheduler: Scheduler,
-    serializer: Serializer[ServerMessage[PickleType, Event, ErrorType], PickleType],
+    serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
 
-    val websocketServer = WebsocketServer[PickleType, Event, ErrorType, State](config, handler)
+    val websocketServer = WebsocketServer[PickleType, ErrorType, State](config, handler)
     get {
       handleWebSocketMessages(websocketServer.flow())
     }
@@ -36,9 +36,9 @@ object AkkaWsRoute {
   )(implicit
     system: ActorSystem,
     scheduler: Scheduler,
-    serializer: Serializer[ServerMessage[PickleType, Event, ErrorType], PickleType],
+    serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[PickleType], PickleType],
-    env: Result[_] <:< ApiDsl[Event, ErrorType, State]#ApiFunction[_]) = {
+    env: Result[_] <:< ApiDsl[Event, ErrorType, State]#ApiFunctionT[_]) = {
 
     val handler = new ApiRequestHandler[PickleType, Event, ErrorType, State, Result](api, router)
     fromRouter(router, config, handler)
@@ -50,17 +50,17 @@ object AkkaWsRoute {
     failedRequestError: ServerFailure => ErrorType)(implicit
     system: ActorSystem,
     scheduler: Scheduler,
-    serializer: Serializer[ServerMessage[PickleType, Unit, ErrorType], PickleType],
+    serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
 
-    val handler = new SimpleStatelessRequestHandler[PickleType, Unit, ErrorType] {
-      override def onClientConnect(): Unit = {
-        scribe.info("Client connected")
+    val handler = new StatelessRequestHandler[PickleType, ErrorType] {
+      override def onClientConnect(client: ClientId): Unit = {
+        scribe.info(s"Client connected ($client)")
       }
-      override def onClientDisconnect(reason: DisconnectReason): Unit = {
-        scribe.info(s"Client disconnected: $reason")
+      override def onClientDisconnect(client: ClientId, reason: DisconnectReason): Unit = {
+        scribe.info(s"Client disconnected ($client): $reason")
       }
-      override def onRequest(path: List[String], payload: PickleType): Response = {
+      override def onRequest(client: ClientId, path: List[String], payload: PickleType): Response = {
         router(Request(path, payload)).toEither match {
           case Right(res) =>
             val recoveredResult = res.map(Right(_)).recover { case t => Left(failedRequestError(ServerFailure.HandlerError(t))) }
@@ -80,17 +80,17 @@ object AkkaWsRoute {
     failedRequestError: ServerFailure => ErrorType)(implicit
     system: ActorSystem,
     scheduler: Scheduler,
-    serializer: Serializer[ServerMessage[PickleType, Unit, ErrorType], PickleType],
+    serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
 
-    val handler = new SimpleStatelessRequestHandler[PickleType, Unit, ErrorType] {
-      override def onClientConnect(): Unit = {
-        scribe.info("Client connected")
+    val handler = new StatelessRequestHandler[PickleType, ErrorType] {
+      override def onClientConnect(client: ClientId): Unit = {
+        scribe.info(s"Client connected ($client)")
       }
-      override def onClientDisconnect(reason: DisconnectReason): Unit = {
-        scribe.info(s"Client disconnected: $reason")
+      override def onClientDisconnect(client: ClientId, reason: DisconnectReason): Unit = {
+        scribe.info(s"Client disconnected ($client): $reason")
       }
-      override def onRequest(path: List[String], payload: PickleType): Response = {
+      override def onRequest(client: ClientId, path: List[String], payload: PickleType): Response = {
         router(Request(path, payload)).toEither match {
           case Right(res) =>
             val recoveredResult = res.value.recover { case t => Left(failedRequestError(ServerFailure.HandlerError(t))) }
@@ -109,17 +109,17 @@ object AkkaWsRoute {
     failedRequestError: ServerFailure => ErrorType)(implicit
     system: ActorSystem,
     scheduler: Scheduler,
-    serializer: Serializer[ServerMessage[PickleType, Unit, ErrorType], PickleType],
+    serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
 
-    val handler = new SimpleStatelessRequestHandler[PickleType, Unit, ErrorType] {
-      override def onClientConnect(): Unit = {
-        scribe.info("Client connected")
+    val handler = new StatelessRequestHandler[PickleType, ErrorType] {
+      override def onClientConnect(client: ClientId): Unit = {
+        scribe.info(s"Client connected ($client)")
       }
-      override def onClientDisconnect(reason: DisconnectReason): Unit = {
-        scribe.info(s"Client disconnected: $reason")
+      override def onClientDisconnect(client: ClientId, reason: DisconnectReason): Unit = {
+        scribe.info(s"Client disconnected ($client): $reason")
       }
-      override def onRequest(path: List[String], payload: PickleType): Response = {
+      override def onRequest(client: ClientId, path: List[String], payload: PickleType): Response = {
         router(Request(path, payload)).toEither match {
           case Right(res) =>
             val recoveredResult = res.map(Right(_)).onErrorHandle(t => Left(failedRequestError(ServerFailure.HandlerError(t))))

@@ -4,7 +4,6 @@ import sloth._
 import covenant.core.util.StopWatch
 import covenant.core.api._
 import covenant.http.api._
-
 import akka.util.ByteString
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.server.Directives._
@@ -13,13 +12,12 @@ import akka.http.scaladsl.unmarshalling._
 import akka.http.scaladsl.model._
 import akka.stream.Materializer
 import monix.execution.Scheduler
-
 import cats.data.EitherT
 import cats.syntax.either._
-
 import java.nio.ByteBuffer
-import scala.concurrent.{Future, ExecutionContext}
-import scala.util.{Success, Failure}
+
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 object ByteBufferImplicits {
   implicit val ByteBufferUnmarshaller: FromByteStringUnmarshaller[ByteBuffer] = new FromByteStringUnmarshaller[ByteBuffer] {
@@ -38,35 +36,42 @@ object AkkaHttpRoute {
      router: Router[PickleType, Result],
      api: HttpApiConfiguration[Event, ErrorType, State])(implicit
      scheduler: Scheduler,
-     env: Result[_] <:< ApiDsl[Event, ErrorType, State]#ApiFunction[_]): Route = {
+     env: Result[_] <:< ApiDsl[Event, ErrorType, State]#ApiFunctionT[_]): Route = {
+     import api.dsl._
 
      requestFunctionToRouteWithHeaders[PickleType] { (r, httpRequest) =>
        val watch = StopWatch.started
        val state: Future[State] = api.requestToState(httpRequest)
        val path = httpRequest.getUri.toString.split("/").toList //TODO
 
-       router(r).asInstanceOf[RouterResult[PickleType, ApiDsl[Event, ErrorType, State]#ApiFunction]] match {
-         case RouterResult.Success(arguments, apiFunction) =>
-           val apiResponse = apiFunction.run(state)
-           val newState = apiResponse.state
+       //TODO: asinstanceof
+       router(r).asInstanceOf[RouterResult[PickleType, ApiDsl[Event, ErrorType, State]#ApiFunctionT]] match {
+         case RouterResult.Success(arguments, apiFunction) => apiFunction match {
+           case f: ApiFunction.Single[RouterResult.Value[PickleType]] =>
+             val apiResponse = f.run(state)
+             val newState = apiResponse.state
 
-           val returnValue = apiResponse.value.map { value =>
-             val rawResult = value.result.map(_.raw)
-             val serializedResult = value.result.map(_.serialized)
-             if (value.events.nonEmpty) api.publishEvents(value.events.toList)
-              scribe.info(s"http -->[response] ${requestLogLine(path, arguments, rawResult)} / ${value.events}. Took ${watch.readHuman}.")
-             //TODO map errors
-             serializedResult.fold(err => complete(StatusCodes.BadRequest -> err.toString), complete(_))
-           }
+             val returnValue = {
+               val future = apiResponse.action.value
+               val events = apiResponse.action.events
+               val rawResult = future.map(_.raw)
+               val serializedResult = future.map(_.serialized)
+               scribe.info(s"http -->[response] ${requestLogLine(path, arguments, rawResult)} / ${events}. Took ${watch.readHuman}.")
 
-           apiResponse.asyncEvents.foreach { rawEvents =>
-             if (rawEvents.nonEmpty) {
-               scribe.info(s"http -->[async] ${requestLogLine(path, arguments, rawEvents)}. Took ${watch.readHuman}.")
-               api.publishEvents(rawEvents.toList)
+               //TODO: what about private evnets? scoping?
+               api.publishEvents(apiResponse.action.events)
+
+               serializedResult.transform {
+                 case Success(v) => Success(complete(v))
+                 //TODO map errors
+                 case Failure(err) => Success(complete(StatusCodes.BadRequest -> err.toString))
+               }
              }
-           }
 
-           Right(returnValue)
+             Right(returnValue)
+
+           case f: ApiFunction.Stream[RouterResult.Value[PickleType]] => ??? // TODO
+         }
 
          case RouterResult.Failure(arguments, error) =>
            scribe.warn(s"http -->[failure] ${requestLogLine(path, arguments, error)}. Took ${watch.readHuman}.")
