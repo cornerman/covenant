@@ -13,7 +13,7 @@ trait WsApiConfiguration[Event, ErrorType, State] {
   def scopeOutgoingEvents(events: List[Event]): ScopedEvents[Event]
   def eventDistributor: EventDistributor[Event]
 
-  val dsl: ApiDsl[Event, ErrorType, State]
+  val dsl: ServerDsl[Event, State]
 }
 trait WsApiConfigurationWithDefaults[Event, ErrorType, State] extends WsApiConfiguration[Event, ErrorType, State] {
   override def scopeOutgoingEvents(events: List[Event]) = ScopedEvents[Event](events, events)

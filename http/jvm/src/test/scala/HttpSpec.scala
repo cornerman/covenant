@@ -55,7 +55,7 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 
   case class ApiError(msg: String)
 
-  object Dsl extends ApiDsl[Event, ApiError, State]
+  object Dsl extends ServerDsl[Event, State]
 
   implicit val system = ActorSystem("akkahttp")
   implicit val materializer = ActorMaterializer()

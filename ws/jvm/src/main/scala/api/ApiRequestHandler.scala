@@ -10,15 +10,11 @@ import cats.syntax.either._
 
 import scala.concurrent.Future
 
-class ApiRequestHandler[PickleType, Event, ErrorType, State, Result[_]](
+class ApiRequestHandler[PickleType, Event, ErrorType, State](
   api: WsApiConfiguration[Event, ErrorType, State],
-  router: Router[PickleType, Result]
-)(implicit
-  scheduler: Scheduler,
-  env: Result[_] <:< ApiDsl[Event, ErrorType, State]#ApiFunctionT[_]
-) extends StatefulRequestHandler[PickleType, ErrorType, State] {
+  router: Router[PickleType, RawServerDsl.ApiFunctionT[Event, State, ?]]
+)(implicit scheduler: Scheduler) extends StatefulRequestHandler[PickleType, ErrorType, State] {
   import covenant.core.util.LogHelper._
-  import api.dsl._
 
   def initialState = Future.successful(api.initialState)
 
@@ -40,13 +36,13 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State, Result[_]](
     router(request) match {
 
       case RouterResult.Success(arguments, apiFunction) => apiFunction match {
-        case f: ApiFunction.Single[RouterResult.Value[PickleType]] =>
+        case f: RawServerDsl.ApiFunction.Single[Event, State, RouterResult.Value[PickleType]] =>
           val result = f.run(state)
           val newState = result.state
 
           ???
 
-        case f: ApiFunction.Stream[RouterResult.Value[PickleType]] =>
+        case f: RawServerDsl.ApiFunction.Stream[Event, State, RouterResult.Value[PickleType]] =>
           val result = f.run(state)
           val newState = result.state
 

@@ -29,18 +29,17 @@ object AkkaWsRoute {
     }
   }
 
-  def fromApiRouter[PickleType : AkkaMessageBuilder, Event, ErrorType, State, Result[_]](
-    router: Router[PickleType, Result],
+  def fromApiRouter[PickleType : AkkaMessageBuilder, Event, ErrorType, State](
+    router: Router[PickleType, RawServerDsl.ApiFunctionT[Event, State, ?]],
     config: WebsocketServerConfig,
     api: WsApiConfiguration[Event, ErrorType, State]
   )(implicit
     system: ActorSystem,
     scheduler: Scheduler,
     serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
-    deserializer: Deserializer[ClientMessage[PickleType], PickleType],
-    env: Result[_] <:< ApiDsl[Event, ErrorType, State]#ApiFunctionT[_]) = {
+    deserializer: Deserializer[ClientMessage[PickleType], PickleType]) = {
 
-    val handler = new ApiRequestHandler[PickleType, Event, ErrorType, State, Result](api, router)
+    val handler = new ApiRequestHandler[PickleType, Event, ErrorType, State](api, router)
     fromRouter(router, config, handler)
   }
 

@@ -32,12 +32,10 @@ object ByteBufferImplicits {
 object AkkaHttpRoute {
    import covenant.core.util.LogHelper._
 
-   def fromApiRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller, Event, ErrorType, State, Result[_]](
-     router: Router[PickleType, Result],
+   def fromApiRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller, Event, ErrorType, State](
+     router: Router[PickleType, RawServerDsl.ApiFunctionT[Event, State, ?]],
      api: HttpApiConfiguration[Event, ErrorType, State])(implicit
-     scheduler: Scheduler,
-     env: Result[_] <:< ApiDsl[Event, ErrorType, State]#ApiFunctionT[_]): Route = {
-     import api.dsl._
+     scheduler: Scheduler): Route = {
 
      requestFunctionToRouteWithHeaders[PickleType] { (r, httpRequest) =>
        val watch = StopWatch.started
@@ -45,9 +43,9 @@ object AkkaHttpRoute {
        val path = httpRequest.getUri.toString.split("/").toList //TODO
 
        //TODO: asinstanceof
-       router(r).asInstanceOf[RouterResult[PickleType, ApiDsl[Event, ErrorType, State]#ApiFunctionT]] match {
+       router(r) match {
          case RouterResult.Success(arguments, apiFunction) => apiFunction match {
-           case f: ApiFunction.Single[RouterResult.Value[PickleType]] =>
+           case f: RawServerDsl.ApiFunction.Single[Event, State, RouterResult.Value[PickleType]] =>
              val apiResponse = f.run(state)
              val newState = apiResponse.state
 
@@ -70,7 +68,7 @@ object AkkaHttpRoute {
 
              Right(returnValue)
 
-           case f: ApiFunction.Stream[RouterResult.Value[PickleType]] => ??? // TODO
+           case f: RawServerDsl.ApiFunction.Stream[Event, State, RouterResult.Value[PickleType]] => ??? // TODO
          }
 
          case RouterResult.Failure(arguments, error) =>

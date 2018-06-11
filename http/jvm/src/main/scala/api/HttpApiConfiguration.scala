@@ -11,5 +11,5 @@ trait HttpApiConfiguration[Event, ErrorType, State] {
   def requestToState(request: HttpRequest): Future[State]
   def publishEvents(events: Observable[List[Event]]): Unit
 
-  val dsl: ApiDsl[Event, ErrorType, State]
+  val dsl: ServerDsl[Event, State]
 }
