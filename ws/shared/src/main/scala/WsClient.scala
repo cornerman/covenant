@@ -78,7 +78,7 @@ object WsClient extends NativeWsClient {
 
     def sendWith(sendType: SendType, requestTimeout: Option[FiniteDuration]) = {
       val transport = new RequestTransport[PickleType, Observable] {
-        def apply(request: Request[PickleType]): Observable[PickleType] = {
+        def apply(request: Request[PickleType]): Observable[PickleType] = Observable(request).flatMap { request =>
           mycelium.send(request.path, request.payload, sendType, requestTimeout).map {
             case Right(res) => res
             case Left(err) => throw new Exception(s"Websocket request failed: $err")
