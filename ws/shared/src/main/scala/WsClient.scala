@@ -35,7 +35,7 @@ object WsClient extends NativeWsClient {
     uri: String,
     connection: WebsocketConnection[PickleType],
     config: WebsocketClientConfig,
-    logger: LogHandler[Future]
+    logger: LogHandler
   )(implicit
     scheduler: Scheduler,
     serializer: Serializer[ClientMessage[PickleType], PickleType],
@@ -60,7 +60,7 @@ object WsClient extends NativeWsClient {
     uri: String,
     connection: WebsocketConnection[PickleType],
     config: WebsocketClientConfig,
-    logger: LogHandler[Observable]
+    logger: LogHandler
   )(implicit
     scheduler: Scheduler,
     serializer: Serializer[ClientMessage[PickleType], PickleType],
@@ -86,7 +86,7 @@ object WsClient extends NativeWsClient {
     connection: WebsocketConnection[PickleType],
     config: WebsocketClientConfig,
     recover: PartialFunction[Throwable, ErrorType],
-    logger: LogHandler[EitherT[Future, ErrorType, ?]]
+    logger: LogHandler
   )(implicit
     scheduler: Scheduler,
     serializer: Serializer[ClientMessage[PickleType], PickleType],

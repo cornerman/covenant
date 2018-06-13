@@ -17,7 +17,7 @@ private[ws] trait NativeWsClient {
   def apply[PickleType, ErrorType](
     uri: String,
     config: WebsocketClientConfig,
-    logger: LogHandler[Future]
+    logger: LogHandler
   )(implicit
     scheduler: Scheduler,
     builder: JsMessageBuilder[PickleType],
@@ -36,13 +36,13 @@ private[ws] trait NativeWsClient {
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, ErrorType], PickleType]
   ): WsClient[PickleType, Future, ErrorType, ClientException] = {
-    apply[PickleType, ErrorType](uri, config, new DefaultLogHandler[Future])
+    apply[PickleType, ErrorType](uri, config, DefaultLogHandler)
   }
 
   def streamable[PickleType, ErrorType](
     uri: String,
     config: WebsocketClientConfig,
-    logger: LogHandler[Observable]
+    logger: LogHandler
   )(implicit
     scheduler: Scheduler,
     builder: JsMessageBuilder[PickleType],
@@ -61,14 +61,14 @@ private[ws] trait NativeWsClient {
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, ErrorType], PickleType]
   ): WsClient[PickleType, Observable, ErrorType, ClientException] = {
-    streamable[PickleType, ErrorType](uri, config, new DefaultLogHandler[Observable])
+    streamable[PickleType, ErrorType](uri, config, DefaultLogHandler)
   }
 
   def apply[PickleType, ErrorType : ClientFailureConvert](
     uri: String,
     config: WebsocketClientConfig,
     recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty,
-    logger: LogHandler[EitherT[Future, ErrorType, ?]] = null
+    logger: LogHandler = DefaultLogHandler
   )(implicit
     scheduler: Scheduler,
     builder: JsMessageBuilder[PickleType],
@@ -76,6 +76,6 @@ private[ws] trait NativeWsClient {
     deserializer: Deserializer[ServerMessage[PickleType, ErrorType], PickleType]
   ): WsClient[PickleType, EitherT[Future, ErrorType, ?], ErrorType, ErrorType] = {
     val connection = new JsWebsocketConnection
-    WsClient.fromConnection(uri, connection, config, recover, if (logger == null) new DefaultLogHandler[EitherT[Future, ErrorType, ?]] else logger)
+    WsClient.fromConnection(uri, connection, config, recover, logger)
   }
 }

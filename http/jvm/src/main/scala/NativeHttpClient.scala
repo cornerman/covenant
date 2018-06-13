@@ -20,7 +20,7 @@ import scala.concurrent.Future
 private[http] trait NativeHttpClient {
   def apply[PickleType](
     baseUri: String,
-    logger: LogHandler[Future]
+    logger: LogHandler
   )(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
@@ -48,14 +48,14 @@ private[http] trait NativeHttpClient {
     unmarshaller: FromByteStringUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]): Client[PickleType, Future, ClientException] = {
       import system.dispatcher
-      apply[PickleType](baseUri, new DefaultLogHandler[Future])
+      apply[PickleType](baseUri, DefaultLogHandler)
     }
 
   def apply[PickleType, ErrorType : ClientFailureConvert](
     baseUri: String,
     failedRequestError: (String, StatusCode) => ErrorType,
     recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty,
-    logger: LogHandler[EitherT[Future, ErrorType, ?]] = null
+    logger: LogHandler = DefaultLogHandler
   )(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
@@ -70,7 +70,7 @@ private[http] trait NativeHttpClient {
       }
     }
 
-    Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, if (logger == null) new DefaultLogHandler[EitherT[Future, ErrorType, ?]] else logger)
+    Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, logger)
   }
 
   private def sendRequest[PickleType, ErrorType](

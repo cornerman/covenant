@@ -15,7 +15,7 @@ import scala.util.Try
 private[http] trait NativeHttpClient {
   def apply[PickleType](
     baseUri: String,
-    logger: LogHandler[Future]
+    logger: LogHandler
   )(implicit
     ec: ExecutionContext,
     builder: JsMessageBuilder[PickleType]): Client[PickleType, Future, ClientException] = {
@@ -37,14 +37,14 @@ private[http] trait NativeHttpClient {
   )(implicit
     ec: ExecutionContext,
     builder: JsMessageBuilder[PickleType]): Client[PickleType, Future, ClientException] = {
-      apply[PickleType](baseUri, new DefaultLogHandler[Future])
+      apply[PickleType](baseUri, DefaultLogHandler)
     }
 
   def apply[PickleType, ErrorType : ClientFailureConvert](
     baseUri: String,
     failedRequestError: (String, Int) => ErrorType,
     recover: PartialFunction[Throwable, ErrorType] = PartialFunction.empty,
-    logger: LogHandler[EitherT[Future, ErrorType, ?]] = null
+    logger: LogHandler = DefaultLogHandler
   )(implicit
     ec: ExecutionContext,
     builder: JsMessageBuilder[PickleType]): Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType] = {
@@ -56,7 +56,7 @@ private[http] trait NativeHttpClient {
       }
     }
 
-    Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, if (logger == null) new DefaultLogHandler[EitherT[Future, ErrorType, ?]] else logger)
+    Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, logger)
   }
 
   private def sendRequest[PickleType, ErrorType](

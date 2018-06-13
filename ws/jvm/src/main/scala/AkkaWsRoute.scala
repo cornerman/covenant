@@ -7,6 +7,7 @@ import mycelium.core._
 import mycelium.core.message._
 import mycelium.server._
 import chameleon._
+import cats.implicits._
 import cats.data.EitherT
 import akka.actor.ActorSystem
 import akka.http.scaladsl.server.Route
@@ -62,7 +63,7 @@ object AkkaWsRoute {
       override def onRequest(client: ClientId, path: List[String], payload: PickleType): Response = {
         router(Request(path, payload)).toEither match {
           case Right(res) =>
-            val recoveredResult = res.map(Right(_)).recover { case t => Left(failedRequestError(ServerFailure.HandlerError(t))) }
+            val recoveredResult = res.map(Right.apply).recover { case t => Left(failedRequestError(ServerFailure.HandlerError(t))) }
             Response(recoveredResult)
           case Left(err) =>
             Response(Future.successful(Left(failedRequestError(err))))
@@ -94,7 +95,8 @@ object AkkaWsRoute {
           case Right(res) =>
             val recoveredResult = res.value.recover { case t => Left(failedRequestError(ServerFailure.HandlerError(t))) }
             Response(recoveredResult)
-          case Left(err) => Response(Future.successful(Left(failedRequestError(err))))
+          case Left(err) =>
+            Response(Future.successful(Left(failedRequestError(err))))
         }
       }
     }

@@ -7,10 +7,10 @@ import cats.syntax.monadError._
 
 import scala.concurrent.{Future, ExecutionContext}
 
-class DefaultLogHandler[Result[_]](implicit monad: cats.MonadError[Result, _ <: Any]) extends LogHandler[Result] {
+object DefaultLogHandler extends LogHandler {
   import LogHelper._
 
-  override def logRequest(path: List[String], arguments: Product, result: Result[_]): Unit = {
+  override def logRequest[Result[_], ErrorType](path: List[String], arguments: Product, result: Result[_])(implicit monad: cats.MonadError[Result, _ >: ErrorType]): Unit = {
     val watch = StopWatch.started
     scribe.info(s"--> ${requestLogLine(path, arguments)}.")
     monad.map(result) { result =>

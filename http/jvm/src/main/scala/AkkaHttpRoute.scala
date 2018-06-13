@@ -12,6 +12,7 @@ import akka.http.scaladsl.unmarshalling._
 import akka.http.scaladsl.model._
 import akka.stream.Materializer
 import monix.execution.Scheduler
+import cats.implicits._
 import cats.data.EitherT
 import cats.syntax.either._
 import java.nio.ByteBuffer
@@ -42,7 +43,6 @@ object AkkaHttpRoute {
        val state: Future[State] = api.requestToState(httpRequest)
        val path = httpRequest.getUri.toString.split("/").toList //TODO
 
-       //TODO: asinstanceof
        router(r) match {
          case RouterResult.Success(arguments, apiFunction) => apiFunction match {
            case f: RawServerDsl.ApiFunction.Single[Event, State, RouterResult.Value[PickleType]] =>
