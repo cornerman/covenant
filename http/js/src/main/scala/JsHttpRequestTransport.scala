@@ -24,10 +24,7 @@ object JsHttpRequestTransport {
     builder: JsMessageBuilder[PickleType]
   ) = RequestTransport[PickleType, EitherT[RequestOperation, HttpErrorCode, ?]] { request =>
 
-    EitherT(RequestOperation {
-      case RequestKind.Single => Observable.fromTask(sendRequest(baseUri, request))
-      case RequestKind.Stream => sendStreamRequest(baseUri, request)
-    })
+    EitherT(RequestOperation(sendRequest(baseUri, request), sendStreamRequest(baseUri, request)))
   }
 
   private def sendRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit

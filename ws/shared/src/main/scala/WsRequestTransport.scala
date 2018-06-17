@@ -20,9 +20,8 @@ sealed class WsRequestTransport[PickleType, ErrorType](
 
   def requestWith(sendType: SendType = SendType.WhenConnected, timeout: Option[FiniteDuration] = Some(30 seconds)) = new RequestTransport[PickleType, EitherT[RequestOperation, ErrorType, ?]] {
     def apply(request: Request[PickleType]): EitherT[RequestOperation, ErrorType, PickleType] = {
-      EitherT(RequestOperation { _ =>
-        Observable.defer(mycelium.send(request.path, request.payload, sendType, timeout))
-      })
+      def sendRequest = Observable.defer(mycelium.send(request.path, request.payload, sendType, timeout))
+      EitherT(RequestOperation(sendRequest.lastL, sendRequest))
     }
   }
 
