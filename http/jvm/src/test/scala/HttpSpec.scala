@@ -2,6 +2,7 @@ package test
 
 import org.scalatest._
 
+import covenant.core._
 import covenant.core.api._
 import covenant.http._, ByteBufferImplicits._
 import sloth._
@@ -15,6 +16,7 @@ import akka.http.scaladsl.model._
 import akka.stream.ActorMaterializer
 import akka.actor.ActorSystem
 import monix.reactive.Observable
+import monix.execution.Scheduler
 
 import cats.implicits._
 import cats.derived.auto.functor._
@@ -22,6 +24,8 @@ import cats.derived.auto.functor._
 import scala.concurrent.Future
 
 class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
+  override implicit def executionContext = Scheduler.global
+
   trait Api[Result[_]] {
     def fun(a: Int): Result[Int]
     @PathName("funWithDefault")
@@ -30,6 +34,9 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 
   object FutureApiImpl extends Api[Future] {
     def fun(a: Int): Future[Int] = Future.successful(a)
+  }
+  object ObservableApiImpl extends Api[Observable] {
+    def fun(a: Int): Observable[Int] = Observable(a,2,3)
   }
 
   trait StreamAndFutureApi[Result[R[_], _]] {
@@ -64,16 +71,17 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     val port = 9989
 
     object Backend {
-      val router = Router[ByteBuffer, Future]
+      val router = RequestRouter[ByteBuffer]
         .route[Api[Future]](FutureApiImpl)
 
       def run() = {
-        Http().bindAndHandle(AkkaHttpRoute.fromFutureRouter(router), interface = "0.0.0.0", port = port)
+        Http().bindAndHandle(AkkaHttpRoute.fromRouter(router), interface = "0.0.0.0", port = port)
       }
     }
 
     object Frontend {
-      val client = HttpClient[ByteBuffer](s"http://localhost:$port")
+      val transport = HttpRequestTransport[ByteBuffer](s"http://localhost:$port")
+      val client = Client(transport.flattenError, DefaultLogHandler)
       val api = client.wire[Api[Future]]
     }
 
@@ -88,43 +96,77 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     }
   }
 
- "run" in {
-   import covenant.http.api._
-   import monix.execution.Scheduler.Implicits.global
+ "stream run" in {
+    val port = 9987
 
-   val port = 9988
+    object Backend {
+      val router = RequestRouter[ByteBuffer]
+        .route[Api[Observable]](ObservableApiImpl)
 
-   val api = new HttpApiConfiguration[Event, ApiError, State] {
-     val dsl = Dsl
-     override def requestToState(request: HttpRequest): Future[State] = Future.successful(request.toString)
-     override def publishEvents(events: Observable[List[Event]]): Unit = ()
-   }
+      def run() = {
+        Http().bindAndHandle(AkkaHttpRoute.fromRouter(router), interface = "0.0.0.0", port = port)
+      }
+    }
 
-   object Backend {
-     val router = Router[ByteBuffer, Dsl.ApiFunctionT]
-       .route[StreamAndFutureApi[Dsl.ApiFunction]](DslApiImpl)
+    object Frontend {
+      val transport = HttpRequestTransport[ByteBuffer](s"http://localhost:$port")
+      val client = Client(transport.flattenError, DefaultLogHandler)
+      val api = client.wire[Api[Observable]]
+    }
 
-     def run() = {
-       val route = AkkaHttpRoute.fromApiRouter(router, api)
-       Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
-     }
-   }
+    Backend.run()
 
-   object Frontend {
-     val client = HttpClient[ByteBuffer](s"http://localhost:$port")
-     val api = client.wire[Api[Future]]
-   }
+    val funs1 = Frontend.api.fun(13).foldLeftL[List[Int]](Nil)((l,i) => l :+ i).runAsync
+    val funs2 = Frontend.api.fun(7, 9).foldLeftL[List[Int]](Nil)((l,i) => l :+ i).runAsync
+    Thread.sleep(6000)
 
-   Backend.run()
+    for {
+      funs1 <- funs1
+      funs2 <- funs2
+    } yield {
+      funs1 mustEqual List(13, 2, 3)
+      funs2 mustEqual List(16, 2, 3)
+    }
+  }
 
-   for {
-     fun <- Frontend.api.fun(1)
-     fun2 <- Frontend.api.fun(1, 2)
-   } yield {
-     fun mustEqual 1
-     fun2 mustEqual 3
-   }
- }
+ // "api run" in {
+ //   import covenant.http.api._
+ //   import monix.execution.Scheduler.Implicits.global
+
+ //   val port = 9988
+
+ //   val api = new HttpApiConfiguration[Event, ApiError, State] {
+ //     val dsl = Dsl
+ //     override def requestToState(request: HttpRequest): Future[State] = Future.successful(request.toString)
+ //     override def publishEvents(events: Observable[List[Event]]): Unit = ()
+ //   }
+
+ //   object Backend {
+ //     val router = Router[ByteBuffer, Dsl.ApiFunctionT]
+ //       .route[StreamAndFutureApi[Dsl.ApiFunction]](DslApiImpl)
+
+ //     def run() = {
+ //       val route = AkkaHttpRoute.fromApiRouter(router, api)
+ //       Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
+ //     }
+ //   }
+
+ //   object Frontend {
+ //     val transport = HttpRequestTransport[ByteBuffer]("http://localhost:$port")
+ //     val client = Client(transport)
+ //     val api = client.wire[Api[Future]]
+ //   }
+
+ //   Backend.run()
+
+ //   for {
+ //     fun <- Frontend.api.fun(1)
+ //     fun2 <- Frontend.api.fun(1, 2)
+ //   } yield {
+ //     fun mustEqual 1
+ //     fun2 mustEqual 3
+ //   }
+ // }
 
   override def afterAll(): Unit = {
     system.terminate()

@@ -7,7 +7,7 @@ import scala.scalajs.js.typedarray._, TypedArrayBufferOps._
 import java.nio.ByteBuffer
 import scala.concurrent.{Promise, Future}
 
-//TODO copied from mycelium
+//TODO copied from mycelium, reuse the builder from mycelium? + responseType (is needed by xmlhttprequest, maybe use fetch?)
 trait JsMessageBuilder[PickleType] {
   import JsMessageBuilder._
 

@@ -1,24 +1,24 @@
 package covenant.core
 
-import sloth.LogHandler
+import sloth.{LogHandler, MonadClientFailure}
 import covenant.core.util._
 import cats.implicits._
 import cats.syntax.monadError._
+import cats.MonadError
 
 import scala.concurrent.{Future, ExecutionContext}
 
 object DefaultLogHandler extends LogHandler {
   import LogHelper._
 
-  override def logRequest[Result[_], ErrorType](path: List[String], arguments: Product, result: Result[_])(implicit monad: cats.MonadError[Result, _ >: ErrorType]): Unit = {
+  def logRequest[Result[_], T](path: List[String], arguments: Product, result: Result[T])(implicit monad: MonadError[Result, _]): Result[T] = {
     val watch = StopWatch.started
-    scribe.info(s"--> ${requestLogLine(path, arguments)}.")
-    monad.map(result) { result =>
-      scribe.info(s"<-- ${requestLogLine(path, arguments, result)}. Took ${watch.readHuman}.")
-    }
-    monad.onError(result) { case err =>
-      scribe.error(s"<-- ${requestLogLineError(path, arguments, result)}. Took ${watch.readHuman}.")
+    monad.onError(result) { case error =>
+      scribe.error(s"<-- ${requestLogLineError(path, arguments, error)}. Took ${watch.readHuman}.")
       monad.pure(())
+    }.map { result =>
+      scribe.info(s"<-- ${requestLogLine(path, arguments, result)}. Took ${watch.readHuman}.")
+      result
     }
   }
 }

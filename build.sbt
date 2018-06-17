@@ -58,6 +58,7 @@ lazy val core = crossProject.crossType(CrossType.Pure)
   .settings(
     name := "covenant-core",
     libraryDependencies ++=
+      Deps.chameleon.value ::
       Deps.sloth.value ::
       Deps.kittens.value ::
       Deps.scribe.value ::
