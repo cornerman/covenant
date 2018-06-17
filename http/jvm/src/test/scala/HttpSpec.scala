@@ -8,9 +8,9 @@ import akka.stream.ActorMaterializer
 import boopickle.Default._
 import chameleon.ext.boopickle._
 import covenant.http.ByteBufferImplicits._
-import covenant.core.{DefaultLogHandler, RequestRouter}
-import covenant.core.api.ServerDsl
-import covenant.http.{AkkaHttpRoute, HttpRequestTransport}
+import covenant.{DefaultLogHandler, RequestRouter}
+import covenant.api.ServerDsl
+import covenant.http.{AkkaHttpRequestTransport, AkkaHttpRoute}
 import monix.execution.Scheduler
 import monix.reactive.Observable
 import org.scalatest._
@@ -74,7 +74,7 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     }
 
     object Frontend {
-      val transport = HttpRequestTransport[ByteBuffer](s"http://localhost:$port")
+      val transport = AkkaHttpRequestTransport[ByteBuffer](s"http://localhost:$port")
       val client = Client(transport.flattenError, DefaultLogHandler)
       val api = client.wire[Api[Future]]
     }
@@ -103,7 +103,7 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     }
 
     object Frontend {
-      val transport = HttpRequestTransport[ByteBuffer](s"http://localhost:$port")
+      val transport = AkkaHttpRequestTransport[ByteBuffer](s"http://localhost:$port")
       val client = Client(transport.flattenError, DefaultLogHandler)
       val api = client.wire[Api[Observable]]
     }

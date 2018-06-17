@@ -1,4 +1,4 @@
-package covenant.core
+package covenant
 
 import cats.data.EitherT
 import cats.{MonadError, ~>}

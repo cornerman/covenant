@@ -1,4 +1,4 @@
-package covenant.core
+package covenant
 
 import cats.{Functor, ~>}
 import monix.eval.Task

@@ -2,7 +2,7 @@ package covenant.ws
 
 import cats.data.EitherT
 import chameleon._
-import covenant.core.RequestOperation
+import covenant.RequestOperation
 import monix.execution.Scheduler
 import mycelium.client._
 import mycelium.core.message._
@@ -27,7 +27,7 @@ sealed class WsRequestTransport[PickleType, ErrorType](
 
   def observable = mycelium.observable
 }
-object WsRequestTransport extends NativeWsRequestTransport {
+object WsRequestTransport {
   def fromConnection[PickleType, ErrorType](
     uri: String,
     connection: WebsocketConnection[PickleType],

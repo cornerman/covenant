@@ -6,8 +6,8 @@ import akka.http.scaladsl.server.Route
 import cats.data.EitherT
 import cats.implicits._
 import chameleon._
-import covenant.core.RequestResponse
-import covenant.core.api._
+import covenant.RequestResponse
+import covenant.api._
 import covenant.ws.api._
 import monix.execution.Scheduler
 import monix.reactive.Observable

@@ -8,8 +8,8 @@ import akka.stream.{ActorMaterializer, OverflowStrategy}
 import boopickle.Default._
 import chameleon.ext.boopickle._
 import cats.data.EitherT
-import covenant.core.{DefaultLogHandler, RequestRouter}
-import covenant.ws.{AkkaWsRoute, WsRequestTransport}
+import covenant.{DefaultLogHandler, RequestRouter}
+import covenant.ws.{AkkaWsRequestTransport, AkkaWsRoute, WsRequestTransport}
 import monix.execution.Scheduler
 import monix.reactive.Observable
 import mycelium.client._
@@ -92,7 +92,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 
     object Frontend {
       type Result[T] = EitherT[Future, ApiError, T]
-      val transport = WsRequestTransport[ByteBuffer, ApiError](s"ws://localhost:$port/ws")
+      val transport = AkkaWsRequestTransport[ByteBuffer, ApiError](s"ws://localhost:$port/ws")
       val client = Client(transport, DefaultLogHandler)
       val api = client.wire[Api[Result]]
     }
@@ -124,7 +124,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 
     object Frontend {
       val config = WebsocketClientConfig()
-      val transport = WsRequestTransport[ByteBuffer, ApiError](s"ws://localhost:$port/ws")
+      val transport = AkkaWsRequestTransport[ByteBuffer, ApiError](s"ws://localhost:$port/ws")
       val client = Client(transport.requestWith(timeout = None).flattenError, DefaultLogHandler)
       val api: Api[Observable] = client.wire[Api[Observable]]
     }

@@ -1,7 +1,7 @@
 package covenant.ws.api
 
-import covenant.core.api._
-import covenant.core.util.StopWatch
+import covenant.api._
+import covenant.util.StopWatch
 import monix.execution.Scheduler
 import mycelium.server._
 import sloth._
@@ -12,7 +12,7 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
   api: WsApiConfiguration[Event, ErrorType, State],
   router: Router[PickleType, RawServerDsl.ApiFunctionT[Event, State, ?]]
 )(implicit scheduler: Scheduler) extends StatefulRequestHandler[PickleType, ErrorType, State] {
-  import covenant.core.util.LogHelper._
+  import covenant.util.LogHelper._
 
   def initialState = Future.successful(api.initialState)
 

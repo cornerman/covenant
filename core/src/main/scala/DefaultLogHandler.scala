@@ -1,8 +1,8 @@
-package covenant.core
+package covenant
 
 import cats.MonadError
 import cats.implicits._
-import covenant.core.util._
+import covenant.util._
 import sloth.LogHandler
 
 object DefaultLogHandler extends LogHandler {

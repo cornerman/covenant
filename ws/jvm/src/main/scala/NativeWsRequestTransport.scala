@@ -8,7 +8,7 @@ import mycelium.client._
 import mycelium.core._
 import mycelium.core.message._
 
-private[ws] trait NativeWsRequestTransport {
+object AkkaWsRequestTransport {
   def apply[PickleType, ErrorType](
     uri: String,
     config: WebsocketClientConfig = WebsocketClientConfig(),

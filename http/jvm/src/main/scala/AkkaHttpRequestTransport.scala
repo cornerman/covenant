@@ -12,7 +12,7 @@ import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import akka.util.ByteStringBuilder
 import cats.data.EitherT
-import covenant.core._
+import covenant._
 import monix.eval.Task
 import monix.reactive.Observable
 import monix.reactive.subjects.PublishSubject
@@ -21,8 +21,7 @@ import sloth._
 import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
-//TODO from* factory
-private[http] trait NativeHttpRequestTransport {
+object AkkaHttpRequestTransport {
   def apply[PickleType](baseUri: String)(implicit
     system: ActorSystem,
     asText: AsTextMessage[PickleType],

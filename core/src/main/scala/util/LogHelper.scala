@@ -1,4 +1,4 @@
-package covenant.core.util
+package covenant.util
 
 object LogHelper {
   def requestLogLine(path: List[String]): String = logLine(path, None, None)

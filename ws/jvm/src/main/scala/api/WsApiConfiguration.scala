@@ -1,6 +1,6 @@
 package covenant.ws.api
 
-import covenant.core.api._
+import covenant.api._
 import sloth._
 
 trait WsApiConfiguration[Event, ErrorType, State] {

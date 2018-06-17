@@ -1,4 +1,4 @@
-package covenant.core.util
+package covenant.util
 
 class StopWatch {
   var startTime = 0L

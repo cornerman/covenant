@@ -1,4 +1,4 @@
-package covenant.core.api
+package covenant.api
 
 import cats.Functor
 import monix.execution.Scheduler

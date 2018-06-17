@@ -1,7 +1,7 @@
 package covenant.http
 
 import cats.data.EitherT
-import covenant.core._
+import covenant._
 import monix.eval.Task
 import monix.reactive.Observable
 import org.scalajs.dom
@@ -11,9 +11,10 @@ import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.scalajs.js.typedarray.ArrayBuffer
 import scala.util.Try
 
-case object HttpDeserializeException extends Exception
 
-private[http] trait NativeHttpRequestTransport {
+object JsHttpRequestTransport {
+  case object DeserializeException extends Exception
+
   def apply[PickleType](
     baseUri: String)(implicit
     ec: ExecutionContext,
@@ -50,7 +51,7 @@ private[http] trait NativeHttpRequestTransport {
 
           promise completeWith value.flatMap {
             case Some(v) => Future.successful(Right(v))
-            case None => Future.failed(HttpDeserializeException)
+            case None => Future.failed(DeserializeException)
           }
         }
         else promise trySuccess Left(HttpErrorCode(http.status))

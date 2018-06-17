@@ -12,9 +12,9 @@ import akka.http.scaladsl.unmarshalling._
 import akka.stream.{Materializer, OverflowStrategy}
 import akka.stream.scaladsl.{Source, SourceQueueWithComplete}
 import akka.util.ByteString
-import covenant.core._
-import covenant.core.api._
-import covenant.core.util.StopWatch
+import covenant._
+import covenant.api._
+import covenant.util.StopWatch
 import covenant.http.api._
 import monix.execution.Scheduler
 import sloth._
@@ -37,7 +37,7 @@ object ByteBufferImplicits {
 }
 
 object AkkaHttpRoute {
-   import covenant.core.util.LogHelper._
+   import covenant.util.LogHelper._
 
    def fromApiRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller, Event, ErrorType, State](
      router: Router[PickleType, RawServerDsl.ApiFunctionT[Event, State, ?]],
