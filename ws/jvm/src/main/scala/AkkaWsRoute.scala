@@ -6,6 +6,7 @@ import akka.http.scaladsl.server.Route
 import cats.data.EitherT
 import cats.implicits._
 import chameleon._
+import covenant.core.RequestResponse
 import covenant.core.api._
 import covenant.ws.api._
 import monix.execution.Scheduler
@@ -18,18 +19,6 @@ import sloth._
 import scala.concurrent.Future
 
 object AkkaWsRoute {
-  def fromRouter[PickleType : AkkaMessageBuilder, Result[_], Event, ErrorType, State](router: Router[PickleType, Result], config: WebsocketServerConfig, handler: RequestHandler[PickleType, ErrorType, State])(implicit
-    system: ActorSystem,
-    scheduler: Scheduler,
-    serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
-    deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
-
-    val websocketServer = WebsocketServer[PickleType, ErrorType, State](config, handler)
-    get {
-      handleWebSocketMessages(websocketServer.flow())
-    }
-  }
-
   def fromApiRouter[PickleType : AkkaMessageBuilder, Event, ErrorType, State](
     router: Router[PickleType, RawServerDsl.ApiFunctionT[Event, State, ?]],
     config: WebsocketServerConfig,
@@ -41,11 +30,11 @@ object AkkaWsRoute {
     deserializer: Deserializer[ClientMessage[PickleType], PickleType]) = {
 
     val handler = new ApiRequestHandler[PickleType, Event, ErrorType, State](api, router)
-    fromRouter(router, config, handler)
+    routerToRoute(router, config, handler)
   }
 
-  def fromFutureRouter[PickleType : AkkaMessageBuilder, ErrorType](
-    router: Router[PickleType, Future],
+  def fromRouter[PickleType : AkkaMessageBuilder, ErrorType](
+    router: Router[PickleType, RequestResponse],
     config: WebsocketServerConfig,
     failedRequestError: ServerFailure => ErrorType)(implicit
     system: ActorSystem,
@@ -62,75 +51,32 @@ object AkkaWsRoute {
       }
       override def onRequest(client: ClientId, path: List[String], payload: PickleType): Response = {
         router(Request(path, payload)).toEither match {
-          case Right(res) =>
-            val recoveredResult = res.map(Right.apply).recover { case t => Left(failedRequestError(ServerFailure.HandlerError(t))) }
-            Response(recoveredResult)
+          case Right(res) => res match {
+            case RequestResponse.Single(task) =>
+              val recoveredResult = task.runAsync.map(Right.apply).recover { case t => Left(failedRequestError(ServerFailure.HandlerError(t))) }
+              Response(recoveredResult)
+            case RequestResponse.Stream(observable) =>
+              val recoveredResult = observable.map(Right.apply).onErrorHandle(t => Left(failedRequestError(ServerFailure.HandlerError(t))))
+              Response(recoveredResult)
+          }
           case Left(err) =>
             Response(Future.successful(Left(failedRequestError(err))))
         }
       }
     }
 
-    fromRouter[PickleType, Future, Unit, ErrorType, Unit](router, config, handler)
+    routerToRoute[PickleType, RequestResponse, Unit, ErrorType, Unit](router, config, handler)
   }
 
-  def fromFutureEitherRouter[PickleType : AkkaMessageBuilder, ErrorType](
-    router: Router[PickleType, EitherT[Future, ErrorType, ?]],
-    config: WebsocketServerConfig,
-    failedRequestError: ServerFailure => ErrorType)(implicit
+  private def routerToRoute[PickleType : AkkaMessageBuilder, Result[_], Event, ErrorType, State](router: Router[PickleType, Result], config: WebsocketServerConfig, handler: RequestHandler[PickleType, ErrorType, State])(implicit
     system: ActorSystem,
     scheduler: Scheduler,
     serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
 
-    val handler = new StatelessRequestHandler[PickleType, ErrorType] {
-      override def onClientConnect(client: ClientId): Unit = {
-        scribe.info(s"Client connected ($client)")
-      }
-      override def onClientDisconnect(client: ClientId, reason: DisconnectReason): Unit = {
-        scribe.info(s"Client disconnected ($client): $reason")
-      }
-      override def onRequest(client: ClientId, path: List[String], payload: PickleType): Response = {
-        router(Request(path, payload)).toEither match {
-          case Right(res) =>
-            val recoveredResult = res.value.recover { case t => Left(failedRequestError(ServerFailure.HandlerError(t))) }
-            Response(recoveredResult)
-          case Left(err) =>
-            Response(Future.successful(Left(failedRequestError(err))))
-        }
-      }
+    val websocketServer = WebsocketServer[PickleType, ErrorType, State](config, handler)
+    get {
+      handleWebSocketMessages(websocketServer.flow())
     }
-
-    fromRouter[PickleType, EitherT[Future, ErrorType, ?], Unit, ErrorType, Unit](router, config, handler)
-  }
-
-  def fromObservableRouter[PickleType : AkkaMessageBuilder, ErrorType](
-    router: Router[PickleType, Observable],
-    config: WebsocketServerConfig,
-    failedRequestError: ServerFailure => ErrorType)(implicit
-    system: ActorSystem,
-    scheduler: Scheduler,
-    serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
-    deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
-
-    val handler = new StatelessRequestHandler[PickleType, ErrorType] {
-      override def onClientConnect(client: ClientId): Unit = {
-        scribe.info(s"Client connected ($client)")
-      }
-      override def onClientDisconnect(client: ClientId, reason: DisconnectReason): Unit = {
-        scribe.info(s"Client disconnected ($client): $reason")
-      }
-      override def onRequest(client: ClientId, path: List[String], payload: PickleType): Response = {
-        router(Request(path, payload)).toEither match {
-          case Right(res) =>
-            val recoveredResult = res.map(Right(_)).onErrorHandle(t => Left(failedRequestError(ServerFailure.HandlerError(t))))
-            Response(recoveredResult)
-          case Left(err) =>
-            Response(Future.successful(Left(failedRequestError(err))))
-        }
-      }
-    }
-
-    fromRouter[PickleType, Observable, Unit, ErrorType, Unit](router, config, handler)
   }
 }

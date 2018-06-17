@@ -7,9 +7,8 @@ import akka.http.scaladsl.Http
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import boopickle.Default._
 import chameleon.ext.boopickle._
-import cats.implicits._
 import cats.data.EitherT
-import covenant.core.DefaultLogHandler
+import covenant.core.{DefaultLogHandler, RequestRouter}
 import covenant.ws.{AkkaWsRoute, WsRequestTransport}
 import monix.execution.Scheduler
 import monix.reactive.Observable
@@ -79,12 +78,12 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
      val port = 9990
 
     object Backend {
-      val router = Router[ByteBuffer, Future]
+      val router = RequestRouter[ByteBuffer]
         .route[Api[Future]](FutureApiImpl)
 
       def run() = {
         val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-        val route = AkkaWsRoute.fromFutureRouter(router, config, failedRequestError = err => ApiError(err.toString))
+        val route = AkkaWsRoute.fromRouter(router, config, failedRequestError = err => ApiError(err.toString))
         Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
       }
     }
@@ -113,12 +112,12 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     val port = 9991
 
     object Backend {
-      val router = Router[ByteBuffer, Observable]
+      val router = RequestRouter[ByteBuffer]
         .route[Api[Observable]](ObservableApiImpl)
 
       def run() = {
         val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-        val route = AkkaWsRoute.fromObservableRouter(router, config, failedRequestError = err => ApiError(err.toString))
+        val route = AkkaWsRoute.fromRouter(router, config, failedRequestError = err => ApiError(err.toString))
         Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
       }
     }
