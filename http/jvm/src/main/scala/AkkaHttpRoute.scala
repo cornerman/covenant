@@ -1,41 +1,26 @@
 package covenant.http
 
-import sloth._
-import covenant.core._
-import covenant.core.util.StopWatch
-import covenant.core.api._
-import covenant.http.api._
-import akka.util.ByteString
-import akka.http.scaladsl.server.Route
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.marshalling._
-import akka.http.scaladsl.unmarshalling._
-import akka.http.scaladsl.model._
-import akka.NotUsed
-import akka.stream.scaladsl.{Source, SourceQueue}
-
-import scala.concurrent.Promise
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.unmarshalling.Unmarshal
-import akka.http.scaladsl.model.sse.ServerSentEvent
-
-import scala.concurrent.duration._
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter.ISO_LOCAL_TIME
-
-import akka.stream.{ActorMaterializer, OverflowStrategy}
-import akka.http.scaladsl.marshalling.sse.EventStreamMarshalling._
-import akka.stream.Materializer
-import monix.execution.Scheduler
-import cats.implicits._
-import cats.data.EitherT
-import cats.syntax.either._
 import java.nio.ByteBuffer
 
-import akka.stream.scaladsl.SourceQueueWithComplete
-import scala.concurrent.duration.FiniteDuration
+import akka.http.scaladsl.marshalling._
+import akka.http.scaladsl.marshalling.sse.EventStreamMarshalling._
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.sse.ServerSentEvent
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.unmarshalling._
+import akka.stream.{Materializer, OverflowStrategy}
+import akka.stream.scaladsl.{Source, SourceQueueWithComplete}
+import akka.util.ByteString
+import covenant.core._
+import covenant.core.api._
+import covenant.core.util.StopWatch
+import covenant.http.api._
+import monix.execution.Scheduler
+import sloth._
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration.{FiniteDuration, _}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Failure, Success}
 
 case class HttpServerConfig(bufferSize: Int = 100, overflowStrategy: OverflowStrategy = OverflowStrategy.fail, keepAliveInterval: FiniteDuration = 30 seconds)

@@ -1,17 +1,10 @@
 package covenant.ws
 
-import sloth._
-import covenant.core.DefaultLogHandler
+import chameleon._
+import monix.execution.Scheduler
 import mycelium.client._
 import mycelium.core._
 import mycelium.core.message._
-import chameleon._
-import cats.data.EitherT
-import monix.execution.Scheduler
-import monix.reactive.Observable
-import cats.implicits._
-
-import scala.concurrent.Future
 
 private[ws] trait NativeWsRequestTransport {
   def apply[PickleType, ErrorType](

@@ -1,12 +1,9 @@
 package covenant.core
 
-import sloth.{LogHandler, MonadClientFailure}
-import covenant.core.util._
-import cats.implicits._
-import cats.syntax.monadError._
 import cats.MonadError
-
-import scala.concurrent.{Future, ExecutionContext}
+import cats.implicits._
+import covenant.core.util._
+import sloth.LogHandler
 
 object DefaultLogHandler extends LogHandler {
   import LogHelper._

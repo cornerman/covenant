@@ -1,25 +1,20 @@
 package test
 
-import org.scalatest._
-
-import covenant.core._
-import covenant.core.api._
-import covenant.http._, ByteBufferImplicits._
-import sloth._
-import chameleon.ext.boopickle._
-import boopickle.Default._
 import java.nio.ByteBuffer
 
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.server.RouteResult._
-import akka.http.scaladsl.model._
-import akka.stream.ActorMaterializer
 import akka.actor.ActorSystem
-import monix.reactive.Observable
+import akka.http.scaladsl.Http
+import akka.stream.ActorMaterializer
+import boopickle.Default._
+import chameleon.ext.boopickle._
+import covenant.http.ByteBufferImplicits._
+import covenant.core.{DefaultLogHandler, RequestRouter}
+import covenant.core.api.ServerDsl
+import covenant.http.{AkkaHttpRoute, HttpRequestTransport}
 import monix.execution.Scheduler
-
-import cats.implicits._
-import cats.derived.auto.functor._
+import monix.reactive.Observable
+import org.scalatest._
+import sloth._
 
 import scala.concurrent.Future
 
@@ -39,22 +34,21 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     def fun(a: Int): Observable[Int] = Observable(a,2,3)
   }
 
-  trait StreamAndFutureApi[Result[R[_], _]] {
-    def foo(a: Int): Result[Future, Int]
-    def bar(a: Int): Result[Observable, Int]
-  }
+//  trait StreamAndFutureApi[Result[R[_], _]] {
+//    def foo(a: Int): Result[Future, Int]
+//    def bar(a: Int): Result[Observable, Int]
+//  }
 
-  object DslApiImpl extends StreamAndFutureApi[Dsl.ApiFunction] {
-    import Dsl._
-
-    def foo(a: Int): ApiFunction[Future, Int] = ApiFunction { state =>
-      ApiResult(Future.successful(a))
-    }
-
-    def bar(a: Int): ApiFunction[Observable, Int] = ApiFunction.stream { state =>
-      ApiResult(Observable(a))
-    }
-  }
+//  object DslApiImpl extends StreamAndFutureApi[Dsl.ApiFunction] {
+//
+//    def foo(a: Int): ApiFunction[Future, Int] = ApiFunction { state =>
+//      ApiResult(Future.successful(a))
+//    }
+//
+//    def bar(a: Int): ApiFunction[Observable, Int] = ApiFunction.stream { state =>
+//      ApiResult(Observable(a))
+//    }
+//  }
 
   //TODO generalize over this structure, can implement requesthander? --> apidsl
   type Event = String

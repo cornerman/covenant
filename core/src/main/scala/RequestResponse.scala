@@ -1,10 +1,10 @@
 package covenant.core
 
-import cats.~>
-import cats.Functor
-import sloth._
+import cats.{Functor, ~>}
 import monix.eval.Task
 import monix.reactive.Observable
+import sloth._
+
 import scala.concurrent.Future
 
 //TODO: allow eithert is more general concept, giving way to returning errors in router

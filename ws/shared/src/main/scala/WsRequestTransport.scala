@@ -1,19 +1,14 @@
 package covenant.ws
 
-import sloth._
+import cats.data.EitherT
+import chameleon._
+import covenant.core.RequestOperation
+import monix.execution.Scheduler
 import mycelium.client._
 import mycelium.core.message._
-import chameleon._
-import monix.reactive.subjects.PublishSubject
-import monix.reactive.Observable
-import cats.data.EitherT
-import cats.implicits._
-import cats.syntax.monadError._
-import monix.execution.Scheduler
-import covenant.core.RequestOperation
+import sloth._
 
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
 
 sealed class WsRequestTransport[PickleType, ErrorType](
   protected val mycelium: WebsocketClient[PickleType, ErrorType]

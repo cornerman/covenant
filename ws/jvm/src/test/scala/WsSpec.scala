@@ -1,25 +1,22 @@
 package test
 
-import org.scalatest._
-import covenant.core.api._
-import covenant.ws._
-import sloth._
-import chameleon.ext.boopickle._
-import boopickle.Default._
 import java.nio.ByteBuffer
-import cats.data.EitherT
 
-import covenant.core._
+import akka.actor.ActorSystem
+import akka.http.scaladsl.Http
+import akka.stream.{ActorMaterializer, OverflowStrategy}
+import boopickle.Default._
+import chameleon.ext.boopickle._
+import cats.implicits._
+import cats.data.EitherT
+import covenant.core.DefaultLogHandler
+import covenant.ws.{AkkaWsRoute, WsRequestTransport}
+import monix.execution.Scheduler
+import monix.reactive.Observable
 import mycelium.client._
 import mycelium.server._
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.server.RouteResult._
-import akka.stream.{ActorMaterializer, OverflowStrategy}
-import akka.actor.ActorSystem
-import cats.implicits._
-import cats.derived.auto.functor._
-import monix.reactive.Observable
-import monix.execution.Scheduler
+import org.scalatest._
+import sloth._
 
 import scala.concurrent.Future
 
@@ -93,7 +90,6 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     }
 
     import sloth._
-    import cats.MonadError
 
     object Frontend {
       type Result[T] = EitherT[Future, ApiError, T]

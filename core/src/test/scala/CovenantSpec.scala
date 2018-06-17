@@ -1,4 +1,4 @@
-package test.covenant
+package test
 
 import org.scalatest._
 

@@ -1,19 +1,19 @@
 package covenant.ws
 
-import sloth._
-import covenant.ws.api._
+import akka.actor.ActorSystem
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+import cats.data.EitherT
+import cats.implicits._
+import chameleon._
 import covenant.core.api._
+import covenant.ws.api._
+import monix.execution.Scheduler
+import monix.reactive.Observable
 import mycelium.core._
 import mycelium.core.message._
 import mycelium.server._
-import chameleon._
-import cats.implicits._
-import cats.data.EitherT
-import akka.actor.ActorSystem
-import akka.http.scaladsl.server.Route
-import akka.http.scaladsl.server.Directives._
-import monix.execution.Scheduler
-import monix.reactive.Observable
+import sloth._
 
 import scala.concurrent.Future
 

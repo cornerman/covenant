@@ -1,12 +1,10 @@
 package covenant.ws.api
 
-import covenant.core.util.StopWatch
 import covenant.core.api._
-import sloth._
-import mycelium.server._
+import covenant.core.util.StopWatch
 import monix.execution.Scheduler
-import monix.reactive.subjects.PublishSubject
-import cats.syntax.either._
+import mycelium.server._
+import sloth._
 
 import scala.concurrent.Future
 

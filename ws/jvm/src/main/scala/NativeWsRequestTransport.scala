@@ -1,20 +1,12 @@
 package covenant.ws
 
-import sloth._
-import covenant.core.DefaultLogHandler
-import mycelium.client._
+import akka.actor.ActorSystem
+import akka.stream.{ActorMaterializer, OverflowStrategy}
+import chameleon._
+import monix.execution.Scheduler
 import mycelium.client._
 import mycelium.core._
 import mycelium.core.message._
-import chameleon._
-import cats.data.EitherT
-import akka.stream.{ActorMaterializer, OverflowStrategy}
-import akka.actor.ActorSystem
-import monix.execution.Scheduler
-import cats.implicits._
-import monix.reactive.Observable
-
-import scala.concurrent.Future
 
 private[ws] trait NativeWsRequestTransport {
   def apply[PickleType, ErrorType](

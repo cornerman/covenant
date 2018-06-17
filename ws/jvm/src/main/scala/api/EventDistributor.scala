@@ -1,10 +1,9 @@
 package covenant.ws.api
 
-import mycelium.server._
-import monix.reactive.subjects.{Subject, PublishSubject}
-
 import java.util.concurrent.ConcurrentHashMap
-import concurrent.Future
+
+import monix.reactive.subjects.PublishSubject
+import mycelium.server._
 
 trait EventDistributor[Event] {
   def subscribe(client: ClientId): Unit

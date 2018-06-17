@@ -1,11 +1,13 @@
 package covenant.http
 
-import org.scalajs.dom.{Event,UIEvent, FileReader, Blob}
-import scala.scalajs.js.|
-import scala.scalajs.js.typedarray._, TypedArrayBufferOps._
-
 import java.nio.ByteBuffer
-import scala.concurrent.{Promise, Future}
+
+import org.scalajs.dom.{Blob, Event, FileReader, UIEvent}
+
+import scala.concurrent.{Future, Promise}
+import scala.scalajs.js.typedarray.TypedArrayBufferOps._
+import scala.scalajs.js.typedarray._
+import scala.scalajs.js.|
 
 //TODO copied from mycelium, reuse the builder from mycelium? + responseType (is needed by xmlhttprequest, maybe use fetch?)
 trait JsMessageBuilder[PickleType] {

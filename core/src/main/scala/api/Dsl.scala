@@ -1,13 +1,10 @@
 package covenant.core.api
 
-import cats.{Functor, Id}
-
-import scala.concurrent.{ExecutionContext, Future}
-import scala.annotation.tailrec
-import scala.util.control.NonFatal
-import cats.implicits._
+import cats.Functor
 import monix.execution.Scheduler
 import monix.reactive.Observable
+
+import scala.concurrent.Future
 
 object ClientDsl {
   type Result[R[_], T] = R[T]

@@ -1,9 +1,7 @@
 package covenant.ws.api
 
-import sloth._
 import covenant.core.api._
-
-import scala.concurrent.Future
+import sloth._
 
 trait WsApiConfiguration[Event, ErrorType, State] {
   def initialState: State

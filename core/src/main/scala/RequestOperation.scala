@@ -1,16 +1,13 @@
 package covenant.core
 
-import monix.eval.Task
-import monix.reactive.Observable
-import monix.execution.Scheduler
-import scala.concurrent.Future
-import scala.annotation.tailrec
-
-import cats.~>
 import cats.data.EitherT
-import cats.MonadError
-import cats.syntax.monadError._
-import sloth.{ResultMapping, RequestTransport, ClientFailureConvert}
+import cats.{MonadError, ~>}
+import monix.eval.Task
+import monix.execution.Scheduler
+import monix.reactive.Observable
+import sloth.{RequestTransport, ResultMapping}
+
+import scala.concurrent.Future
 
 sealed trait RequestKind
 object RequestKind {

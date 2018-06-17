@@ -1,34 +1,22 @@
 package covenant.http
 
-import sloth._
-import covenant.core._
-import akka.actor.ActorSystem
-import akka.util.ByteStringBuilder
-import akka.http.scaladsl.marshalling._
-import akka.http.scaladsl.unmarshalling._
-import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.model._
-import akka.stream.ActorMaterializer
 import akka.NotUsed
-import akka.stream.scaladsl.{Source, SourceQueue}
-
-import scala.concurrent.Promise
+import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.unmarshalling.Unmarshal
+import akka.http.scaladsl.marshalling._
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.sse.ServerSentEvent
-
-import scala.concurrent.duration._
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter.ISO_LOCAL_TIME
-
-import akka.stream.{ActorMaterializer, OverflowStrategy}
-import akka.http.scaladsl.marshalling.sse.EventStreamMarshalling._
+import akka.http.scaladsl.unmarshalling.{Unmarshal, _}
+import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
+import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.Source
+import akka.util.ByteStringBuilder
 import cats.data.EitherT
-import cats.implicits._
+import covenant.core._
 import monix.eval.Task
 import monix.reactive.Observable
 import monix.reactive.subjects.PublishSubject
+import sloth._
 
 import scala.concurrent.Future
 import scala.util.{Failure, Success}

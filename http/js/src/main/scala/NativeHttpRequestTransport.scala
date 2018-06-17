@@ -1,16 +1,14 @@
 package covenant.http
 
-import sloth._
-
-import org.scalajs.dom
-import scala.scalajs.js.typedarray.ArrayBuffer
+import cats.data.EitherT
 import covenant.core._
-
 import monix.eval.Task
 import monix.reactive.Observable
-import cats.data.EitherT
+import org.scalajs.dom
+import sloth._
 
-import scala.concurrent.{Future, Promise, ExecutionContext}
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.scalajs.js.typedarray.ArrayBuffer
 import scala.util.Try
 
 case object HttpDeserializeException extends Exception
