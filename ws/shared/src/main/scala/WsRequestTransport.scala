@@ -17,6 +17,7 @@ sealed class WsRequestTransport[PickleType, ErrorType](
   private val defaultTransport = requestWith()
   def apply(request: Request[PickleType]): EitherT[RequestOperation, ErrorType, PickleType] = defaultTransport(request)
 
+  //TODO lazy
   def requestWith(sendType: SendType = SendType.WhenConnected, timeout: Option[FiniteDuration] = Some(30 seconds)) = new RequestTransport[PickleType, EitherT[RequestOperation, ErrorType, ?]] {
     def apply(request: Request[PickleType]): EitherT[RequestOperation, ErrorType, PickleType] = {
       EitherT(RequestOperation { _ =>
