@@ -5,12 +5,13 @@ import covenant._
 import monix.eval.Task
 import monix.reactive.Observable
 import org.scalajs.dom
+import org.scalajs.dom.crypto.BufferSource
+import org.scalajs.dom.experimental.{Request => _, _}
 import sloth._
 
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.{ExecutionContext, Future}
+import scala.scalajs.js
 import scala.scalajs.js.typedarray.ArrayBuffer
-import scala.util.Try
-
 
 object JsHttpRequestTransport {
   case object DeserializeException extends Exception
@@ -32,39 +33,38 @@ object JsHttpRequestTransport {
     builder: JsMessageBuilder[PickleType]): Task[Either[HttpErrorCode, PickleType]] = Task.fromFuture {
 
     val uri = (baseUri :: request.path).mkString("/")
-    val promise = Promise[Either[HttpErrorCode, PickleType]]()
-
-    //TODO use fetch? can be intercepted by serviceworker.
-    val http = new dom.XMLHttpRequest
-    http.responseType = builder.responseType
-
-    http.open("POST", uri, true)
-    http.onreadystatechange = { (_: dom.Event) =>
-      if(http.readyState == 4)
-        if (http.status == 200) {
-          val value = (http.response: Any) match {
-            case s: String => builder.unpack(s)
-            case a: ArrayBuffer => builder.unpack(a)
-            case b: dom.Blob => builder.unpack(b)
-            case _ => Future.successful(None)
-          }
-
-          promise completeWith value.flatMap {
-            case Some(v) => Future.successful(Right(v))
-            case None => Future.failed(DeserializeException)
-          }
-        }
-        else promise trySuccess Left(HttpErrorCode(http.status))
-    }
 
     val message = builder.pack(request.payload)
-    (message: Any) match {
-      case s: String => Try(http.send(s))
-      case a: ArrayBuffer => Try(http.send(a))
-      case b: dom.Blob => Try(http.send(b))
+    val bodyInit: BodyInit = (message: Any) match {
+      case s: String => s
+      case a: ArrayBuffer => a.asInstanceOf[BufferSource] //TODO: why does bodyinit not accept ArrayBuffer?
+      case b: dom.Blob => b
     }
 
-    promise.future
+    //TODO why are var not initialized?
+    val response = Fetch.fetch(uri, new RequestInit {
+      var method: js.UndefOr[HttpMethod] = HttpMethod.POST
+      var headers: js.UndefOr[HeadersInit] = js.undefined
+      var body: js.UndefOr[BodyInit] = bodyInit
+      var referrer: js.UndefOr[String] = js.undefined
+      var referrerPolicy: js.UndefOr[ReferrerPolicy] = js.undefined
+      var mode: js.UndefOr[RequestMode] = js.undefined
+      var credentials: js.UndefOr[RequestCredentials] = js.undefined
+      var requestCache: js.UndefOr[RequestCache] = js.undefined
+      var requestRedirect: js.UndefOr[RequestRedirect] = js.undefined
+      var integrity: js.UndefOr[String] = js.undefined
+      var window: js.UndefOr[Null] = js.undefined
+    })
+
+    response.toFuture.flatMap { response =>
+      if (response.status == 200) response.body.getReader().read().toFuture.flatMap { chunk =>
+        val buffer = chunk.value.buffer
+        builder.unpack(buffer).flatMap {
+          case Some(v) => Future.successful(Right(v))
+          case None => Future.failed(DeserializeException)
+        }
+      } else Future.successful(Left(HttpErrorCode(response.status)))
+    }
   }
 
   private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType]): Observable[Either[HttpErrorCode, PickleType]] = ???

@@ -9,11 +9,10 @@ import scala.scalajs.js.typedarray.TypedArrayBufferOps._
 import scala.scalajs.js.typedarray._
 import scala.scalajs.js.|
 
-//TODO copied from mycelium, reuse the builder from mycelium? + responseType (is needed by xmlhttprequest, maybe use fetch?)
+//TODO copied from mycelium
 trait JsMessageBuilder[PickleType] {
   import JsMessageBuilder._
 
-  def responseType: String
   def pack(msg: PickleType): Message
   def unpack(m: Message): Future[Option[PickleType]]
 }
@@ -22,7 +21,6 @@ object JsMessageBuilder {
   type Message = String | ArrayBuffer | Blob
 
   implicit val JsMessageBuilderString = new JsMessageBuilder[String] {
-    val responseType = ""
     def pack(msg: String): Message = msg
     def unpack(m: Message): Future[Option[String]] = (m: Any) match {
       case s: String => Future.successful(Some(s))
@@ -31,7 +29,6 @@ object JsMessageBuilder {
     }
   }
   implicit val JsMessageBuilderByteBuffer = new JsMessageBuilder[ByteBuffer] {
-    val responseType = "arraybuffer"
     def pack(msg: ByteBuffer): Message = msg.arrayBuffer.slice(msg.position, msg.limit)
     def unpack(m: Message): Future[Option[ByteBuffer]] = (m: Any) match {
       case a: ArrayBuffer => Future.successful(Option(TypedArrayBuffer.wrap(a)))
