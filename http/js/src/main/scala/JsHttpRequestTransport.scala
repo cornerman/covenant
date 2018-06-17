@@ -4,9 +4,11 @@ import cats.data.EitherT
 import covenant._
 import monix.eval.Task
 import monix.reactive.Observable
+import monix.reactive.subjects.PublishSubject
 import org.scalajs.dom
 import org.scalajs.dom.crypto.BufferSource
 import org.scalajs.dom.experimental.{Request => _, _}
+import org.scalajs.dom.raw.EventSource
 import sloth._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -15,12 +17,12 @@ import scala.scalajs.js.typedarray.ArrayBuffer
 
 object JsHttpRequestTransport {
   case object DeserializeException extends Exception
+  case object EventSourceException extends Exception
 
-  def apply[PickleType](
-    baseUri: String)(implicit
+  def apply[PickleType](baseUri: String)(implicit
     ec: ExecutionContext,
     builder: JsMessageBuilder[PickleType]
-    ) = RequestTransport[PickleType, EitherT[RequestOperation, HttpErrorCode, ?]] { request =>
+  ) = RequestTransport[PickleType, EitherT[RequestOperation, HttpErrorCode, ?]] { request =>
 
     EitherT(RequestOperation {
       case RequestKind.Single => Observable.fromTask(sendRequest(baseUri, request))
@@ -30,7 +32,8 @@ object JsHttpRequestTransport {
 
   private def sendRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
     ec: ExecutionContext,
-    builder: JsMessageBuilder[PickleType]): Task[Either[HttpErrorCode, PickleType]] = Task.fromFuture {
+    builder: JsMessageBuilder[PickleType]
+  ): Task[Either[HttpErrorCode, PickleType]] = Task.fromFuture {
 
     val uri = (baseUri :: request.path).mkString("/")
 
@@ -67,5 +70,35 @@ object JsHttpRequestTransport {
     }
   }
 
-  private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType]): Observable[Either[HttpErrorCode, PickleType]] = ???
+  //TODO: lazy
+  private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
+    ec: ExecutionContext,
+    builder: JsMessageBuilder[PickleType]
+  ): Observable[Either[HttpErrorCode, PickleType]] = {
+    val uri = (baseUri :: request.path).mkString("/")
+    val source = new EventSource(uri)
+    val subject = PublishSubject[Either[HttpErrorCode, PickleType]]
+    source.onerror = { event =>
+      scribe.warn(s"EventSource got error")
+      subject.onError(EventSourceException)
+    }
+    source.onopen = { _ =>
+      scribe.info(s"EventSource opened for url '$uri'")
+    }
+    source.onmessage = { event =>
+      scribe.info(s"EventSource got message: ${event.data}")
+      val msg = event.data match {
+        case s: String => builder.unpack(s)
+        case a: ArrayBuffer => builder.unpack(a)
+        case b: dom.Blob => builder.unpack(b)
+      }
+      //TODO order
+      msg.foreach {
+        case Some(v) => subject.onNext(Right(v))
+        case None => subject.onError(DeserializeException)
+      }
+    }
+
+    subject
+  }
 }
