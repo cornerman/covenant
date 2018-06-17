@@ -4,6 +4,7 @@ import cats.data.EitherT
 import chameleon._
 import covenant.RequestOperation
 import monix.execution.Scheduler
+import monix.reactive.Observable
 import mycelium.client._
 import mycelium.core.message._
 import sloth._
@@ -17,11 +18,10 @@ sealed class WsRequestTransport[PickleType, ErrorType](
   private val defaultTransport = requestWith()
   def apply(request: Request[PickleType]): EitherT[RequestOperation, ErrorType, PickleType] = defaultTransport(request)
 
-  //TODO lazy
   def requestWith(sendType: SendType = SendType.WhenConnected, timeout: Option[FiniteDuration] = Some(30 seconds)) = new RequestTransport[PickleType, EitherT[RequestOperation, ErrorType, ?]] {
     def apply(request: Request[PickleType]): EitherT[RequestOperation, ErrorType, PickleType] = {
       EitherT(RequestOperation { _ =>
-        mycelium.send(request.path, request.payload, sendType, timeout)
+        Observable.defer(mycelium.send(request.path, request.payload, sendType, timeout))
       })
     }
   }

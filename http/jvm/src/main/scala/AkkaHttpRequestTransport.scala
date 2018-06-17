@@ -39,7 +39,7 @@ object AkkaHttpRequestTransport {
     system: ActorSystem,
     materializer: ActorMaterializer,
     unmarshaller: FromByteStringUnmarshaller[PickleType],
-    marshaller: ToEntityMarshaller[PickleType]): Task[Either[HttpErrorCode, PickleType]] = Task.fromFuture {
+    marshaller: ToEntityMarshaller[PickleType]): Task[Either[HttpErrorCode, PickleType]] = Task.deferFuture {
     import system.dispatcher
 
     val uri = (baseUri :: request.path).mkString("/")
@@ -62,13 +62,12 @@ object AkkaHttpRequestTransport {
     }
   }
 
-  //TODO lazy observable
   private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
     asText: AsTextMessage[PickleType],
     unmarshaller: FromByteStringUnmarshaller[PickleType],
-    marshaller: ToEntityMarshaller[PickleType]): Observable[Either[HttpErrorCode, PickleType]] = {
+    marshaller: ToEntityMarshaller[PickleType]): Observable[Either[HttpErrorCode, PickleType]] = Observable.defer {
     import system.dispatcher
 
     val uri = (baseUri :: request.path).mkString("/")

@@ -33,7 +33,7 @@ object JsHttpRequestTransport {
   private def sendRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
     ec: ExecutionContext,
     builder: JsMessageBuilder[PickleType]
-  ): Task[Either[HttpErrorCode, PickleType]] = Task.fromFuture {
+  ): Task[Either[HttpErrorCode, PickleType]] = Task.deferFuture {
 
     val uri = (baseUri :: request.path).mkString("/")
 
@@ -70,11 +70,10 @@ object JsHttpRequestTransport {
     }
   }
 
-  //TODO: lazy
   private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
     ec: ExecutionContext,
     builder: JsMessageBuilder[PickleType]
-  ): Observable[Either[HttpErrorCode, PickleType]] = {
+  ): Observable[Either[HttpErrorCode, PickleType]] = Observable.defer {
     val uri = (baseUri :: request.path).mkString("/")
     val source = new EventSource(uri)
     val subject = PublishSubject[Either[HttpErrorCode, PickleType]]
