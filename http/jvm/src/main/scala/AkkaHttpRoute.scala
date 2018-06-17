@@ -53,7 +53,6 @@ object AkkaHttpRoute {
          case RouterResult.Success(arguments, apiFunction) => apiFunction match {
            case f: RawServerDsl.ApiFunction.Single[Event, State, RouterResult.Value[PickleType]] =>
              val apiResponse = f.run(state)
-             val newState = apiResponse.state
 
              val returnValue = {
                val future = apiResponse.action.value
@@ -84,11 +83,20 @@ object AkkaHttpRoute {
      }
    }
 
-  def fromRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller : AsTextMessage](router: Router[PickleType, RequestResponse], config: HttpServerConfig = HttpServerConfig())(implicit scheduler: Scheduler): Route = responseRouterToRoute[PickleType](router, config)
+  def fromRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller : AsTextMessage](
+    router: Router[PickleType, RequestResponse],
+    config: HttpServerConfig = HttpServerConfig(),
+    recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode] = PartialFunction.empty,
+    recoverThrowable: PartialFunction[Throwable, HttpErrorCode] = PartialFunction.empty
+  )(implicit scheduler: Scheduler): Route = responseRouterToRoute[PickleType](router, config, recoverServerFailure, recoverThrowable)
 
-  //TODO share code with/without headers
-  //TODO custom error codes in response?
-  private def responseRouterToRoute[PickleType : FromRequestUnmarshaller : ToResponseMarshaller](router: Router[PickleType, RequestResponse], config: HttpServerConfig)(implicit scheduler: Scheduler, asText: AsTextMessage[PickleType]): Route = {
+  //TODO split code, share with/without headers
+  private def responseRouterToRoute[PickleType : FromRequestUnmarshaller : ToResponseMarshaller](
+    router: Router[PickleType, RequestResponse],
+    config: HttpServerConfig,
+    recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode],
+    recoverThrowable: PartialFunction[Throwable, HttpErrorCode]
+  )(implicit scheduler: Scheduler, asText: AsTextMessage[PickleType]): Route = {
     (path(Remaining) & post) { pathRest =>
       decodeRequest {
         val path = pathRest.split("/").toList
@@ -97,7 +105,10 @@ object AkkaHttpRoute {
             case Right(result) => result match {
               case RequestResponse.Single(task) => onComplete(task.runAsync) {
                 case Success(r) => complete(r)
-                case Failure(e) => complete(StatusCodes.InternalServerError -> e.toString)
+                case Failure(e) =>
+                  val error = recoverThrowable.lift(e)
+                    .fold[StatusCode](StatusCodes.InternalServerError)(e => StatusCode.int2StatusCode(e.code))
+                  complete(error)
               }
               case RequestResponse.Stream(observable) =>
                 val (outgoing, outgoingMaterialized) = {
@@ -112,14 +123,17 @@ object AkkaHttpRoute {
                     observable //TODO cancel subscription?
                       .map(asText.write)
                       .doOnComplete(() => queue.complete())
-                      .doOnError(t => queue fail t)
+                      .doOnError(t => queue fail t) //TODO: sent error code?
                       .foreach(text => queue offer ServerSentEvent(text))
-                  case Failure(e) => ??? //TODO error to queue?
+                  case Failure(e) => ??? //TODO error code?
                 }
 
                 complete(outgoing.keepAlive(config.keepAliveInterval, () => ServerSentEvent.heartbeat))
             }
-            case Left(err) => complete(StatusCodes.BadRequest -> err.toString)
+            case Left(e) =>
+              val error = recoverServerFailure.lift(e)
+                .fold[StatusCode](StatusCodes.BadRequest)(e => StatusCode.int2StatusCode(e.code))
+              complete(error)
           }
         }
       }

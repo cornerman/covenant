@@ -63,7 +63,6 @@ object AkkaHttpRequestTransport {
     system: ActorSystem,
     materializer: ActorMaterializer,
     asText: AsTextMessage[PickleType],
-    unmarshaller: FromByteStringUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]): Observable[Either[HttpErrorCode, PickleType]] = Observable.defer {
     import system.dispatcher
 
