@@ -7,10 +7,9 @@ import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import boopickle.Default._
 import chameleon.ext.boopickle._
-import covenant.http.ByteBufferImplicits._
 import covenant.{DefaultLogHandler, RequestRouter}
 import covenant.api.ServerDsl
-import covenant.http.{AkkaHttpRequestTransport, AkkaHttpRoute}
+import covenant.http._
 import monix.execution.Scheduler
 import monix.reactive.Observable
 import org.scalatest._

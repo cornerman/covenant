@@ -1,7 +1,5 @@
 package covenant.http
 
-import java.nio.ByteBuffer
-
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.marshalling.sse.EventStreamMarshalling._
 import akka.http.scaladsl.model._
@@ -9,38 +7,26 @@ import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.unmarshalling._
-import akka.stream.{Materializer, OverflowStrategy}
+import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.{Source, SourceQueueWithComplete}
-import akka.util.ByteString
 import covenant._
 import covenant.api._
-import covenant.util.StopWatch
 import covenant.http.api._
+import covenant.util.StopWatch
 import monix.execution.Scheduler
 import sloth._
 
 import scala.concurrent.duration.{FiniteDuration, _}
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.{Future, Promise}
 import scala.util.{Failure, Success}
 
 case class HttpServerConfig(bufferSize: Int = 100, overflowStrategy: OverflowStrategy = OverflowStrategy.fail, keepAliveInterval: FiniteDuration = 30 seconds)
-
-//TODO: use without need to import?
-object ByteBufferImplicits {
-  implicit val ByteBufferUnmarshaller: FromByteStringUnmarshaller[ByteBuffer] = new FromByteStringUnmarshaller[ByteBuffer] {
-    def apply(value: ByteString)(implicit ec: ExecutionContext, materializer: Materializer): Future[java.nio.ByteBuffer] =
-      Future.successful(value.asByteBuffer)
-  }
-
-  implicit val ByteBufferEntityUnmarshaller: FromEntityUnmarshaller[ByteBuffer] = Unmarshaller.byteStringUnmarshaller.andThen(ByteBufferUnmarshaller)
-  implicit val ByteBufferEntityMarshaller: ToEntityMarshaller[ByteBuffer] = Marshaller.ByteStringMarshaller.compose(ByteString(_))
-}
 
 object AkkaHttpRoute {
    import covenant.util.LogHelper._
 
    def fromApiRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller, Event, ErrorType, State](
-     router: Router[PickleType, RawServerDsl.ApiFunctionT[Event, State, ?]],
+     router: Router[PickleType, RawServerDsl.ApiFunction[Event, State, ?]],
      api: HttpApiConfiguration[Event, ErrorType, State])(implicit
      scheduler: Scheduler): Route = {
 
@@ -50,31 +36,32 @@ object AkkaHttpRoute {
        val path = httpRequest.getUri.toString.split("/").toList //TODO
 
        router(r) match {
-         case RouterResult.Success(arguments, apiFunction) => apiFunction match {
-           case f: RawServerDsl.ApiFunction.Single[Event, State, RouterResult.Value[PickleType]] =>
-             val apiResponse = f.run(state)
+         case RouterResult.Success(arguments, apiFunction) =>
+           val apiResponse = apiFunction.run(state)
 
-             val returnValue = {
-               val future = apiResponse.action.value
-               val events = apiResponse.action.events
-               val rawResult = future.map(_.raw)
-               val serializedResult = future.map(_.serialized)
-               scribe.info(s"http -->[response] ${requestLogLine(path, arguments, rawResult)} / ${events}. Took ${watch.readHuman}.")
-
-               //TODO: what about private evnets? scoping?
-               api.publishEvents(apiResponse.action.events)
-
-               serializedResult.transform {
-                 case Success(v) => Success(complete(v))
-                 //TODO map errors
-                 case Failure(err) => Success(complete(StatusCodes.BadRequest -> err.toString))
-               }
+           val returnValue = {
+             apiResponse.value match {
+               case RequestResponse.Single(task) =>
+//                 val rawResult = future.map(_.raw)
+//                 val serializedResult = future.map(_.serialized)
+//                 scribe.info(s"http -->[response] ${requestLogLine(path, arguments, rawResult)} / ${events}. Took ${watch.readHuman}.")
+                 ??? //TODO
+               case RequestResponse.Stream(observable) =>
+                 ??? //TODO
              }
 
-             Right(returnValue)
+             //TODO: what about private evnets? scoping?
+//             api.publishEvents(apiResponse.action.events)
 
-           case f: RawServerDsl.ApiFunction.Stream[Event, State, RouterResult.Value[PickleType]] => ??? // TODO
-         }
+//             serializedResult.transform {
+//               case Success(v) => Success(complete(v))
+//               //TODO map errors
+//               case Failure(err) => Success(complete(StatusCodes.BadRequest -> err.toString))
+//             }
+           }
+
+//           Right(returnValue)
+           ???
 
          case RouterResult.Failure(arguments, error) =>
            scribe.warn(s"http -->[failure] ${requestLogLine(path, arguments, error)}. Took ${watch.readHuman}.")
