@@ -49,7 +49,6 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 //    }
 //  }
 
-  //TODO generalize over this structure, can implement requesthander? --> apidsl
   type Event = String
   type State = String
 

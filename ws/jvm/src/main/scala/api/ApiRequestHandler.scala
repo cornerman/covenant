@@ -10,7 +10,7 @@ import scala.concurrent.Future
 
 class ApiRequestHandler[PickleType, Event, ErrorType, State](
   api: WsApiConfiguration[Event, ErrorType, State],
-  router: Router[PickleType, RawServerDsl.ApiFunctionT[Event, State, ?]]
+  router: Router[PickleType, RawServerDsl.ApiFunction[Event, State, ?]]
 )(implicit scheduler: Scheduler) extends StatefulRequestHandler[PickleType, ErrorType, State] {
   import covenant.util.LogHelper._
 

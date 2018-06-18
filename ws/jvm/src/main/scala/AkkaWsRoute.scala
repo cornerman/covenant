@@ -23,7 +23,7 @@ object AkkaWsRoute {
   case class UnhandledServerFailure(failure: ServerFailure) extends Exception(s"Unhandled server failure: $failure")
 
   def fromApiRouter[PickleType : AkkaMessageBuilder, ErrorType, Event, State](
-    router: Router[PickleType, RawServerDsl.ApiFunctionT[Event, State, ?]],
+    router: Router[PickleType, RawServerDsl.ApiFunction[Event, State, ?]],
     api: WsApiConfiguration[Event, ErrorType, State],
     config: WebsocketServerConfig = WebsocketServerConfig(bufferSize = 100, overflowStrategy = OverflowStrategy.fail)
   )(implicit
