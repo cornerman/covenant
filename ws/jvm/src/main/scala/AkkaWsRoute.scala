@@ -10,6 +10,7 @@ import chameleon._
 import covenant.RequestResponse
 import covenant.api._
 import covenant.ws.api._
+import monix.eval.Task
 import monix.execution.Scheduler
 import monix.reactive.Observable
 import mycelium.core._
@@ -58,15 +59,15 @@ object AkkaWsRoute {
         router(Request(path, payload)).toEither match {
           case Right(res) => res match {
             case RequestResponse.Single(task) =>
-              val recoveredResult = task.runAsync.map(Right.apply).recover(recoverThrowable andThen Left.apply)
-              Response(recoveredResult)
+              val recoveredResult = task.map(Right.apply).onErrorRecover(recoverThrowable andThen Left.apply)
+              ResponseValue(recoveredResult)
             case RequestResponse.Stream(observable) =>
-              val recoveredResult = observable.map(Right.apply).onErrorRecover(recoverThrowable andThen Left.apply)
-              Response(recoveredResult)
+              val recoveredResult = Task(Right(observable))
+              ResponseStream(recoveredResult)
           }
           case Left(failure) => recoverServerFailure.lift(failure) match {
-            case Some(err) => Response(Future.successful(Left(err)))
-            case None => Response(Future.failed(UnhandledServerFailure(failure)))
+            case Some(err) => ResponseValue(Task(Left(err)))
+            case None => ResponseValue(Task.raiseError(UnhandledServerFailure(failure)))
           }
 
         }

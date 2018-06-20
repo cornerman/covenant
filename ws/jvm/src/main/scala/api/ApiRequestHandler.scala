@@ -2,6 +2,7 @@ package covenant.ws.api
 
 import covenant.api._
 import covenant.util.StopWatch
+import monix.eval.Task
 import monix.execution.Scheduler
 import mycelium.server._
 import sloth._
@@ -72,7 +73,7 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
       case RouterResult.Failure(arguments, slothError) =>
         val error = api.serverFailure(slothError)
         scribe.warn(s"$client -->[failure] ${requestLogLine(path, arguments, error)}. Took ${watch.readHuman}.")
-        Response(state, Future.successful(Left(error)))
+        ResponseValue(state, Task(Left(error)))
 
     }
   }

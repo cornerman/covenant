@@ -29,9 +29,11 @@ object AkkaHttpRequestTransport {
     unmarshaller: FromByteStringUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]) = RequestTransport[PickleType, EitherT[RequestOperation, HttpErrorCode, ?]] { request =>
 
-    EitherT(RequestOperation(sendRequest(baseUri, request), sendStreamRequest(baseUri, request)))
+//    EitherT(RequestOperation(sendRequest(baseUri, request), sendStreamRequest(baseUri, request)))
+    ???
   }
 
+  // TODO: unify both send methods and branch in response?
   private def sendRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
@@ -63,42 +65,37 @@ object AkkaHttpRequestTransport {
     system: ActorSystem,
     materializer: ActorMaterializer,
     asText: AsTextMessage[PickleType],
-    marshaller: ToEntityMarshaller[PickleType]): Observable[Either[HttpErrorCode, PickleType]] = Observable.defer {
+    marshaller: ToEntityMarshaller[PickleType]): Task[Either[HttpErrorCode, Observable[PickleType]]] = Task.deferFuture {
     import system.dispatcher
 
     val uri = (baseUri :: request.path).mkString("/")
     val entity = Marshal(request.payload).to[MessageEntity]
 
-    val subject = PublishSubject[Either[HttpErrorCode, PickleType]]
-    entity.foreach { entity =>
-      val requested = Http()
+    entity.flatMap { entity =>
+      val requested: Future[Either[HttpErrorCode, Source[ServerSentEvent, NotUsed]]] = Http()
         .singleRequest(HttpRequest(method = HttpMethods.POST, uri = uri, headers = Nil, entity = entity))
         .flatMap { response =>
           response.status match {
             case StatusCodes.OK =>
-              Unmarshal(response).to[Source[ServerSentEvent, NotUsed]].map(_.map(Right.apply))
+              Unmarshal(response).to[Source[ServerSentEvent, NotUsed]].map(Right.apply)
             case code =>
               response.discardEntityBytes()
-              Future.successful(Source.apply(List(Left(HttpErrorCode(code.intValue())))))
+              Future.successful(Left(HttpErrorCode(code.intValue())))
           }
         }
 
       //TODO error, backpressure protocol
-      requested.onComplete {
-        case Success(source) => source.runForeach {
-          case Right(value) =>
-            val pickled = asText.read(value.data)
-            subject.onNext(Right(pickled))
-          case Left(err) =>
-            subject.onNext(Left(err))
+      requested.map(_.map { source =>
+        val subject = PublishSubject[PickleType]
+        source.runForeach { value =>
+          val pickled = asText.read(value.data)
+          subject.onNext(pickled)
         }.onComplete {
-          case Success(done) => subject.onComplete()
+          case Success(_) => subject.onComplete()
           case Failure(err) => subject.onError(err)
         }
-        case Failure(err) => subject.onError(err)
-      }
+        subject
+      })
     }
-    subject
   }
-
 }

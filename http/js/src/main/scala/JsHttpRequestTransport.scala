@@ -11,7 +11,7 @@ import org.scalajs.dom.experimental.{Request => _, _}
 import org.scalajs.dom.raw.EventSource
 import sloth._
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.scalajs.js
 import scala.scalajs.js.typedarray.ArrayBuffer
 
@@ -21,10 +21,12 @@ object JsHttpRequestTransport {
 
   def apply[PickleType](baseUri: String)(implicit
     ec: ExecutionContext,
+    asText: AsTextMessage[PickleType],
     builder: JsMessageBuilder[PickleType]
   ) = RequestTransport[PickleType, EitherT[RequestOperation, HttpErrorCode, ?]] { request =>
 
-    EitherT(RequestOperation(sendRequest(baseUri, request), sendStreamRequest(baseUri, request)))
+//    EitherT(RequestOperation(sendRequest(baseUri, request), sendStreamRequest(baseUri, request)))
+    ???
   }
 
   private def sendRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
@@ -68,33 +70,35 @@ object JsHttpRequestTransport {
   }
 
   private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
-    ec: ExecutionContext,
-    builder: JsMessageBuilder[PickleType]
-  ): Observable[Either[HttpErrorCode, PickleType]] = Observable.defer {
+    asText: AsTextMessage[PickleType]
+  ): Task[Either[HttpErrorCode, Observable[PickleType]]] = Task.deferFuture {
     val uri = (baseUri :: request.path).mkString("/")
     val source = new EventSource(uri)
-    val subject = PublishSubject[Either[HttpErrorCode, PickleType]]
-    source.onerror = { event =>
-      scribe.warn(s"EventSource got error")
-      subject.onError(EventSourceException)
+
+    //TODO backpressure, error, complete - is reconnecting?
+    val promise = Promise[Either[HttpErrorCode, Observable[PickleType]]]
+    val subject = PublishSubject[PickleType]
+    source.onerror = { _ =>
+      if (source.readyState == EventSource.CLOSED) {
+        scribe.warn(s"EventSource got error")
+        promise trySuccess Left(HttpErrorCode(0)) //TODO get error code?
+        subject.onError(EventSourceException)
+      }
     }
     source.onopen = { _ =>
       scribe.info(s"EventSource opened for url '$uri'")
+      promise success Right(subject)
     }
     source.onmessage = { event =>
       scribe.info(s"EventSource got message: ${event.data}")
-      val msg = event.data match {
-        case s: String => builder.unpack(s)
-        case a: ArrayBuffer => builder.unpack(a)
-        case b: dom.Blob => builder.unpack(b)
-      }
-      //TODO order
-      msg.foreach {
-        case Some(v) => subject.onNext(Right(v))
-        case None => subject.onError(DeserializeException)
+      event.data match {
+        case s: String =>
+          val data = asText.read(s)
+          subject.onNext(data)
+        case data => scribe.warn(s"Unsupported non-string payload in EventSource message: $data")
       }
     }
 
-    subject
+    promise.future
   }
 }
