@@ -23,10 +23,12 @@ import scala.concurrent.Future
 object AkkaWsRoute {
   case class UnhandledServerFailure(failure: ServerFailure) extends Exception(s"Unhandled server failure: $failure")
 
+  def defaultServerConfig = WebsocketServerConfig(bufferSize = 100, overflowStrategy = OverflowStrategy.fail, parallelism = Runtime.getRuntime.availableProcessors)
+
   def fromApiRouter[PickleType : AkkaMessageBuilder, ErrorType, Event, State](
     router: Router[PickleType, RawServerDsl.ApiFunction[Event, State, ?]],
     api: WsApiConfiguration[Event, ErrorType, State],
-    config: WebsocketServerConfig = WebsocketServerConfig(bufferSize = 100, overflowStrategy = OverflowStrategy.fail)
+    config: WebsocketServerConfig = defaultServerConfig
   )(implicit
     system: ActorSystem,
     scheduler: Scheduler,
@@ -39,7 +41,7 @@ object AkkaWsRoute {
 
   def fromRouter[PickleType : AkkaMessageBuilder, ErrorType](
     router: Router[PickleType, RequestResponse],
-    config: WebsocketServerConfig = WebsocketServerConfig(bufferSize = 100, overflowStrategy = OverflowStrategy.fail),
+    config: WebsocketServerConfig = defaultServerConfig,
     recoverServerFailure: PartialFunction[ServerFailure, ErrorType] = PartialFunction.empty,
     recoverThrowable: PartialFunction[Throwable, ErrorType] = PartialFunction.empty)(implicit
     system: ActorSystem,
@@ -59,15 +61,15 @@ object AkkaWsRoute {
         router(Request(path, payload)).toEither match {
           case Right(res) => res match {
             case RequestResponse.Single(task) =>
-              val recoveredResult = task.map(Right.apply).onErrorRecover(recoverThrowable andThen Left.apply)
-              ResponseValue(recoveredResult)
+              val recoveredResult = task.map(EventualResult.Single.apply).onErrorRecover(recoverThrowable andThen EventualResult.Error.apply)
+              Response(recoveredResult)
             case RequestResponse.Stream(observable) =>
-              val recoveredResult = Task(Right(observable))
-              ResponseStream(recoveredResult)
+              val recoveredResult = Task.pure(EventualResult.Stream(observable))
+              Response(recoveredResult)
           }
           case Left(failure) => recoverServerFailure.lift(failure) match {
-            case Some(err) => ResponseValue(Task(Left(err)))
-            case None => ResponseValue(Task.raiseError(UnhandledServerFailure(failure)))
+            case Some(err) => Response(Task.pure(EventualResult.Error(err)))
+            case None => Response(Task.raiseError(UnhandledServerFailure(failure)))
           }
 
         }

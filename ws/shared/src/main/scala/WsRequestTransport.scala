@@ -13,13 +13,13 @@ import scala.concurrent.duration._
 
 sealed class WsRequestTransport[PickleType, ErrorType](
   protected val mycelium: WebsocketClient[PickleType, ErrorType]
-  )(implicit scheduler: Scheduler) extends RequestTransport[PickleType, EitherT[RequestOperation, ErrorType, ?]] {
+  )(implicit scheduler: Scheduler) extends RequestTransport[PickleType, RequestOperation[ErrorType, ?]] {
 
   private val defaultTransport = requestWith()
-  def apply(request: Request[PickleType]): EitherT[RequestOperation, ErrorType, PickleType] = defaultTransport(request)
+  def apply(request: Request[PickleType]): RequestOperation[ErrorType, PickleType] = defaultTransport(request)
 
-  def requestWith(sendType: SendType = SendType.WhenConnected, timeout: Option[FiniteDuration] = Some(30 seconds)) = new RequestTransport[PickleType, EitherT[RequestOperation, ErrorType, ?]] {
-    def apply(request: Request[PickleType]): EitherT[RequestOperation, ErrorType, PickleType] = {
+  def requestWith(sendType: SendType = SendType.WhenConnected, timeout: Option[FiniteDuration] = Some(30 seconds)) = new RequestTransport[PickleType, RequestOperation[ErrorType, ?]] {
+    def apply(request: Request[PickleType]): RequestOperation[ErrorType, PickleType] = {
 //      val request = mycelium.send(request.path, request.payload, sendType, timeout)
 //      EitherT(RequestOperation(sendRequest.lastL, sendRequest))
       ???

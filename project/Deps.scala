@@ -10,8 +10,8 @@ object Deps {
     val dom = dep("org.scala-js" %%% "scalajs-dom" % "0.9.6")
   }
   val chameleon = dep("com.github.cornerman.chameleon" %%% "chameleon" % "3e1931d")
-  val sloth = dep("com.github.cornerman.sloth" %%% "sloth" % "e4245ea")
-  val mycelium = dep("com.github.cornerman.mycelium" %%% "mycelium" % "21c23e1")
+  val sloth = dep("com.github.cornerman.sloth" %%% "sloth" % "276e972")
+  val mycelium = dep("com.github.cornerman.mycelium" %%% "mycelium" % "6ba39dd")
   val kittens = dep("org.typelevel" %%% "kittens" % "1.0.0")
   val akka = new {
     private val version = "2.5.13"

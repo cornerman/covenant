@@ -23,7 +23,7 @@ object JsHttpRequestTransport {
     ec: ExecutionContext,
     asText: AsTextMessage[PickleType],
     builder: JsMessageBuilder[PickleType]
-  ) = RequestTransport[PickleType, EitherT[RequestOperation, HttpErrorCode, ?]] { request =>
+  ) = RequestTransport[PickleType, RequestOperation[HttpErrorCode, ?]] { request =>
 
 //    EitherT(RequestOperation(sendRequest(baseUri, request), sendStreamRequest(baseUri, request)))
     ???
