@@ -57,18 +57,17 @@ object AkkaWsRoute {
         scribe.info(s"Client disconnected ($client): $reason")
       }
       override def onRequest(client: ClientId, path: List[String], payload: PickleType): Response = {
-        val failureThrowable: PartialFunction[Throwable, ServerFailure] = { case t => ServerFailure.HandlerError(t) }
         router(Request(path, payload)).toEither match {
           case Right(res) => res match {
             case RequestResponse.Single(task) =>
-              val recoveredResult = task.map(EventualResult.Single.apply).onErrorRecover(recoverThrowable andThen EventualResult.Error.apply)
+              val recoveredResult = task.map(Right.apply).onErrorRecover(recoverThrowable andThen Left.apply)
               Response(recoveredResult)
             case RequestResponse.Stream(observable) =>
-              val recoveredResult = Task.pure(EventualResult.Stream(observable))
+              val recoveredResult = observable.map(Right.apply).onErrorRecover(recoverThrowable andThen Left.apply)
               Response(recoveredResult)
           }
           case Left(failure) => recoverServerFailure.lift(failure) match {
-            case Some(err) => Response(Task.pure(EventualResult.Error(err)))
+            case Some(err) => Response(Task.pure(Left(err)))
             case None => Response(Task.raiseError(UnhandledServerFailure(failure)))
           }
 

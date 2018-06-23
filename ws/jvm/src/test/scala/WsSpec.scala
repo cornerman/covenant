@@ -121,7 +121,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     object Frontend {
       val config = WebsocketClientConfig()
       val transport = AkkaWsRequestTransport[ByteBuffer, ApiError](s"ws://localhost:$port/ws")
-      val client = Client(transport.requestWith(timeout = None).flattenError, DefaultLogHandler[ApiError])
+      val client = Client(transport.requestWith(timeout = None), DefaultLogHandler[ApiError])
       val api: Api[Observable] = client.wire[Api[Observable]]
     }
 

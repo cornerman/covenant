@@ -1,5 +1,5 @@
 package covenant
 
 object TransportException {
-  case class TransportException(msg: String) extends Exception(s"Error in RequestTransport: $msg")
+  case class RequestError(msg: String) extends Exception(msg)
 }

@@ -73,19 +73,21 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 
     object Frontend {
       val transport = AkkaHttpRequestTransport[ByteBuffer](s"http://localhost:$port")
-      val client = Client(transport.flattenError, DefaultLogHandler)
-      val api = client.wire[Api[Future]]
+//      val client = Client(transport, new DefaultLogHandler[HttpErrorCode])
+//      val api = client.wire[Api[Future]]
     }
 
     Backend.run()
 
-    for {
-      fun <- Frontend.api.fun(1)
-      fun2 <- Frontend.api.fun(1, 2)
-    } yield {
-      fun mustEqual 1
-      fun2 mustEqual 3
-    }
+   //TODO
+//    for {
+//      fun <- Frontend.api.fun(1)
+//      fun2 <- Frontend.api.fun(1, 2)
+//    } yield {
+//      fun mustEqual 1
+//      fun2 mustEqual 3
+//    }
+   ???
   }
 
  "stream run" in {
@@ -102,23 +104,25 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 
     object Frontend {
       val transport = AkkaHttpRequestTransport[ByteBuffer](s"http://localhost:$port")
-      val client = Client(transport.flattenError, DefaultLogHandler)
-      val api = client.wire[Api[Observable]]
+//      val client = Client(transport, new DefaultLogHandler[HttpErrorCode])
+//      val api = client.wire[Api[Observable]]
     }
 
     Backend.run()
 
-    val funs1 = Frontend.api.fun(13).foldLeftL[List[Int]](Nil)((l,i) => l :+ i).runAsync
-    val funs2 = Frontend.api.fun(7, 9).foldLeftL[List[Int]](Nil)((l,i) => l :+ i).runAsync
-    Thread.sleep(6000)
-
-    for {
-      funs1 <- funs1
-      funs2 <- funs2
-    } yield {
-      funs1 mustEqual List(13, 2, 3)
-      funs2 mustEqual List(16, 2, 3)
-    }
+   //TODO
+//    val funs1 = Frontend.api.fun(13).foldLeftL[List[Int]](Nil)((l,i) => l :+ i).runAsync
+//    val funs2 = Frontend.api.fun(7, 9).foldLeftL[List[Int]](Nil)((l,i) => l :+ i).runAsync
+//    Thread.sleep(6000)
+//
+//    for {
+//      funs1 <- funs1
+//      funs2 <- funs2
+//    } yield {
+//      funs1 mustEqual List(13, 2, 3)
+//      funs2 mustEqual List(16, 2, 3)
+//    }
+   ???
   }
 
  // "api run" in {
