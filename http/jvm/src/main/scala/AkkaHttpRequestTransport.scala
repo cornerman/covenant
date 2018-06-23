@@ -27,7 +27,7 @@ object AkkaHttpRequestTransport {
     asText: AsTextMessage[PickleType],
     materializer: ActorMaterializer,
     unmarshaller: FromByteStringUnmarshaller[PickleType],
-    marshaller: ToEntityMarshaller[PickleType]) = RequestTransport[PickleType, EitherT[RequestOperation[HttpErrorCode, ?], HttpErrorCode, ?]] { request =>
+    marshaller: ToEntityMarshaller[PickleType]) = RequestTransport[PickleType, RequestOperation[HttpErrorCode, ?]] { request =>
 
 //    EitherT(RequestOperation(sendRequest(baseUri, request), sendStreamRequest(baseUri, request)))
     ???

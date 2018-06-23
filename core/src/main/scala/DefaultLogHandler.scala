@@ -21,6 +21,6 @@ class DefaultLogHandler[ErrorType] extends LogHandler[RequestOperation[ErrorType
   }
 }
 
-object DefaultLogHandler {
+object DefaultLogHandler extends  {
   def apply[ErrorType]: LogHandler[RequestOperation[ErrorType, ?]] = new DefaultLogHandler
 }

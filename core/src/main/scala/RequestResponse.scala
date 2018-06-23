@@ -17,7 +17,7 @@ object RequestResponse {
 
   implicit val fromTask: ResultMapping[Task, RequestResponse] = ResultMapping(Lambda[Task ~> RequestResponse](RequestResponse.Single(_)))
   implicit val fromFuture: ResultMapping[Future, RequestResponse] = ResultMapping(Lambda[Future ~> RequestResponse](f => RequestResponse.Single(Task.fromFuture(f))))
-    implicit val fromObservable: ResultMapping[Observable, RequestResponse] = ResultMapping(Lambda[Observable ~> RequestResponse](RequestResponse.Stream(_)))
+  implicit val fromObservable: ResultMapping[Observable, RequestResponse] = ResultMapping(Lambda[Observable ~> RequestResponse](RequestResponse.Stream(_)))
 
   // implicit def toEitherT[Result[_], ErrorType](implicit mapping: ResultMapping[RequestOperation, Result]): ResultMapping[EitherT[RequestOperation, ErrorType, ?], EitherT[Result, ErrorType, ?]] = ResultMapping(Lambda[EitherT[RequestOperation, ErrorType, ?] ~> EitherT[Result, ErrorType, ?]](_.mapK(mapping)))
 }

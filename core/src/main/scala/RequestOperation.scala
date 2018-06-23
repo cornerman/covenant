@@ -5,11 +5,11 @@ import cats.{Functor, Monad, MonadError, ~>}
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.reactive.Observable
-import sloth.{RequestTransport, ResultMapping}
+import sloth._
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 
-case class RequestOperation[+ErrorType, +T](single: Task[Either[ErrorType, T]], stream: Task[Either[ErrorType, Observable[T]]])
+case class RequestOperation[+ErrorType, +T](single: Task[Either[ErrorType, T]], stream: Observable[Either[ErrorType, T]])
 object RequestOperation {
   def apply[T](value: Task[T]): RequestOperation[Nothing, T] = RequestOperation(
     value.map(Right.apply),
@@ -20,6 +20,30 @@ object RequestOperation {
   def error[ErrorType](error: ErrorType): RequestOperation[ErrorType, Nothing] = RequestOperation[ErrorType, Nothing](
     Task.pure(Left(error)),
     Task.pure(Left(error)))
+
+  implicit def clientResultError[ErrorType]: ClientResultErrorT[RequestOperation[ErrorType, ?], ErrorType] = new ClientResultErrorT[RequestOperation[ErrorType, ?], ErrorType] {
+    def mapMaybe[T, R](result: RequestOperation[ErrorType, T])(f: T => Either[ErrorType, R]): RequestOperation[ErrorType, R] = RequestOperation(
+      result.single.map(_.flatMap(f)), result.stream.map(_.map(_.flatMap(f andThen {
+        case Right(v) => Observable(v)
+        case Left(err) => Observable.raiseError(TransportException(s"Cannot stream response: $err"))
+      }))))
+    def raiseError[T](error: ErrorType): RequestOperation[ErrorType, T] = RequestOperation.error[ErrorType](error)
+  }
+
+  implicit def toTask[ErrorType]: ResultMapping[RequestOperation[ErrorType, ?], Task] = ResultMapping(Lambda[RequestOperation[ErrorType, ?] ~> Task](_.single.flatMap {
+    case Right(v) => Task.pure(v)
+    case Left(err) => Task.raiseError(TransportException(s"Response task has an error: $err"))
+  }))
+  implicit def toFuture[ErrorType](implicit scheduler: Scheduler): ResultMapping[RequestOperation[ErrorType, ?], Future] = toTask.mapK(Lambda[Task ~> Future](_.runAsync))
+  implicit def toObservable[ErrorType]: ResultMapping[RequestOperation[ErrorType, ?], Observable] = ResultMapping(Lambda[RequestOperation[ErrorType, ?] ~> Observable](v => Observable.fromTask(v.stream).flatMap {
+    case Right(v) => v
+    case Left(err) => Observable.raiseError(TransportException(s"Response stream has an error: $err"))
+  }))
+
+  implicit def toTaskEither[ErrorType]: ResultMapping[RequestOperation[ErrorType, ?], EitherT[Task, ErrorType, ?]] = ResultMapping(Lambda[RequestOperation[ErrorType, ?] ~> EitherT[Task, ErrorType, ?]](_.single))
+  implicit def toFutureEither[ErrorType](implicit scheduler: Scheduler): ResultMapping[RequestOperation[ErrorType, ?], Future] = toTaskEither.mapK(Lambda[Task ~> EitherT[Future, ErrorType, ?]](_.runAsync))
+  implicit def toObservableEither[ErrorType]: ResultMapping[RequestOperation[ErrorType, ?], Lambda[T => EitherT[Task, ErrorType, Observable[T]]] = ResultMapping(Lambda[RequestOperation[ErrorType, ?] ~> Lambda[T => EitherT[Task, ErrorType, Observable[T]]](_.stream)
+  implicit def toObservableEither[ErrorType]: ResultMapping[RequestOperation[ErrorType, ?], Lambda[T => EitherT[Future, ErrorType, Observable[T]]] = toObservableEither.mapK()
 
 //  implicit def monadError[ErrorType]: MonadError[RequestOperation[ErrorType, ?], ErrorType] = new MonadError[RequestOperation[ErrorType, ?], ErrorType] {
 //    def pure[A](x: A): RequestOperation[ErrorType, A] = RequestOperation(x)

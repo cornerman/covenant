@@ -90,7 +90,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     object Frontend {
       type Result[T] = EitherT[Future, ApiError, T]
       val transport = AkkaWsRequestTransport[ByteBuffer, ApiError](s"ws://localhost:$port/ws")
-      val client = Client(transport, DefaultLogHandler)
+      val client = Client(transport, DefaultLogHandler[ApiError])
       val api: Api[Result] = client.wire[Api[Result]]
     }
 
@@ -121,7 +121,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     object Frontend {
       val config = WebsocketClientConfig()
       val transport = AkkaWsRequestTransport[ByteBuffer, ApiError](s"ws://localhost:$port/ws")
-      val client = Client(transport.requestWith(timeout = None).flattenError, DefaultLogHandler)
+      val client = Client(transport.requestWith(timeout = None).flattenError, DefaultLogHandler[ApiError])
       val api: Api[Observable] = client.wire[Api[Observable]]
     }
 
