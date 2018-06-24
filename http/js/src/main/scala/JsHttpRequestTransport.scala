@@ -1,6 +1,5 @@
 package covenant.http
 
-import cats.data.EitherT
 import covenant._
 import monix.eval.Task
 import monix.reactive.Observable
@@ -11,8 +10,7 @@ import org.scalajs.dom.experimental.{Request => _, _}
 import org.scalajs.dom.raw.EventSource
 import sloth._
 
-import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.scalajs.js
+import scala.concurrent.{ExecutionContext, Future}
 import scala.scalajs.js.typedarray.ArrayBuffer
 
 object JsHttpRequestTransport {
@@ -25,8 +23,7 @@ object JsHttpRequestTransport {
     builder: JsMessageBuilder[PickleType]
   ) = RequestTransport[PickleType, RequestOperation[HttpErrorCode, ?]] { request =>
 
-//    EitherT(RequestOperation(sendRequest(baseUri, request), sendStreamRequest(baseUri, request)))
-    ???
+    RequestOperation(sendRequest(baseUri, request), sendStreamRequest(baseUri, request).map(Right.apply))
   }
 
   private def sendRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
@@ -44,19 +41,10 @@ object JsHttpRequestTransport {
     }
 
     //TODO why are var not initialized?
-    val response = Fetch.fetch(uri, new RequestInit {
-      var method: js.UndefOr[HttpMethod] = HttpMethod.POST
-      var headers: js.UndefOr[HeadersInit] = js.undefined
-      var body: js.UndefOr[BodyInit] = bodyInit
-      var referrer: js.UndefOr[String] = js.undefined
-      var referrerPolicy: js.UndefOr[ReferrerPolicy] = js.undefined
-      var mode: js.UndefOr[RequestMode] = js.undefined
-      var credentials: js.UndefOr[RequestCredentials] = js.undefined
-      var requestCache: js.UndefOr[RequestCache] = js.undefined
-      var requestRedirect: js.UndefOr[RequestRedirect] = js.undefined
-      var integrity: js.UndefOr[String] = js.undefined
-      var window: js.UndefOr[Null] = js.undefined
-    })
+    val response = Fetch.fetch(uri, RequestInit(
+      method = HttpMethod.POST,
+      body = bodyInit
+    ))
 
     response.toFuture.flatMap { response =>
       if (response.status == 200) response.body.getReader().read().toFuture.flatMap { chunk =>
@@ -69,25 +57,23 @@ object JsHttpRequestTransport {
     }
   }
 
+  //TODO HttpErrorCode?
   private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
     asText: AsTextMessage[PickleType]
-  ): Task[Either[HttpErrorCode, Observable[PickleType]]] = Task.deferFuture {
+  ): Observable[PickleType] = Observable.defer {
     val uri = (baseUri :: request.path).mkString("/")
     val source = new EventSource(uri)
 
     //TODO backpressure, error, complete - is reconnecting?
-    val promise = Promise[Either[HttpErrorCode, Observable[PickleType]]]
     val subject = PublishSubject[PickleType]
     source.onerror = { _ =>
       if (source.readyState == EventSource.CLOSED) {
         scribe.warn(s"EventSource got error")
-        promise trySuccess Left(HttpErrorCode(0)) //TODO get error code?
         subject.onError(EventSourceException)
       }
     }
     source.onopen = { _ =>
       scribe.info(s"EventSource opened for url '$uri'")
-      promise success Right(subject)
     }
     source.onmessage = { event =>
       scribe.info(s"EventSource got message: ${event.data}")
@@ -99,6 +85,6 @@ object JsHttpRequestTransport {
       }
     }
 
-    promise.future
+    subject
   }
 }

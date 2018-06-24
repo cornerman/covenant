@@ -14,6 +14,7 @@ import akka.util.ByteStringBuilder
 import cats.data.EitherT
 import covenant._
 import monix.eval.Task
+import monix.execution.Ack
 import monix.reactive.Observable
 import monix.reactive.subjects.PublishSubject
 import sloth._
@@ -29,8 +30,12 @@ object AkkaHttpRequestTransport {
     unmarshaller: FromByteStringUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]) = RequestTransport[PickleType, RequestOperation[HttpErrorCode, ?]] { request =>
 
-//    EitherT(RequestOperation(sendRequest(baseUri, request), sendStreamRequest(baseUri, request)))
-    ???
+    RequestOperation(
+      sendRequest(baseUri, request),
+      Observable.fromTask(sendStreamRequest(baseUri, request)).flatMap {
+        case Right(v) => v.map(Right.apply)
+        case Left(err) => Observable(Left(err))
+      })
   }
 
   // TODO: unify both send methods and branch in response?
@@ -84,12 +89,16 @@ object AkkaHttpRequestTransport {
           }
         }
 
-      //TODO error, backpressure protocol
       requested.map(_.map { source =>
         val subject = PublishSubject[PickleType]
-        source.runForeach { value =>
+        source.runFoldAsync[Unit](()) { (_, value) =>
           val pickled = asText.read(value.data)
-          subject.onNext(pickled)
+          subject.onNext(pickled).flatMap {
+            case Ack.Continue => Future.successful(())
+            case Ack.Stop =>
+              scribe.warn("Cannot push further messages, received Stop.")
+              Future.failed(TransportException.StoppedDownstream)
+          }
         }.onComplete {
           case Success(_) => subject.onComplete()
           case Failure(err) => subject.onError(err)

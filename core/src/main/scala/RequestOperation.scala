@@ -1,7 +1,7 @@
 package covenant
 
-import cats.data.{EitherT, Nested}
-import cats.{Functor, Monad, MonadError, ~>}
+import cats.data.EitherT
+import cats.{MonadError, ~>}
 import cats.syntax.monadError._
 import cats.implicits._
 import monix.eval.Task
@@ -9,8 +9,7 @@ import monix.execution.Scheduler
 import monix.reactive.Observable
 import sloth._
 
-import scala.annotation.tailrec
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.Future
 
 case class RequestOperation[+ErrorType, +T](single: Task[Either[ErrorType, T]], stream: Observable[Either[ErrorType, T]])
 object RequestOperation {
@@ -64,15 +63,15 @@ object RequestOperation {
   implicit def toFutureEitherT[ErrorType](implicit scheduler: Scheduler): ResultMapping[RequestOperation[ErrorType, ?], EitherT[Future, ErrorType, ?]] = ResultMapping(Lambda[RequestOperation[ErrorType, ?] ~> EitherT[Future, ErrorType, ?]](op => EitherT(op.single.runAsync)))
   implicit def toObservableEitherT[ErrorType]: ResultMapping[RequestOperation[ErrorType, ?], EitherT[Observable, ErrorType, ?]] = ResultMapping(Lambda[RequestOperation[ErrorType, ?] ~> EitherT[Observable, ErrorType, ?]](op => EitherT(op.stream)))
 
-//  implicit def toTaskEitherT[ErrorType]: ResultMapping[RequestOperation[ErrorType, ?], EitherT[Task, ErrorType, ?]] = ResultMapping(Lambda[RequestOperation[ErrorType, ?] ~> EitherT[Task, ErrorType, ?]](op => EitherT(op.single)))
-//  implicit def toFutureEitherT[ErrorType](implicit scheduler: Scheduler): ResultMapping[RequestOperation[ErrorType, ?], EitherT[Future, ErrorType, ?]] = ResultMapping(Lambda[RequestOperation[ErrorType, ?] ~> EitherT[Future, ErrorType, ?]](op => EitherT(op.single.runAsync)))
+  implicit def toTask[ErrorType]: ResultMapping[RequestOperation[ErrorType, ?], Task] = toTaskEitherT.mapK(flattenEitherT[Task, ErrorType])
+  implicit def toFuture[ErrorType](implicit scheduler: Scheduler): ResultMapping[RequestOperation[ErrorType, ?], Future] = toFutureEitherT.mapK(flattenEitherT[Future, ErrorType])
   implicit def toObservable[ErrorType]: ResultMapping[RequestOperation[ErrorType, ?], Observable] = toObservableEitherT.mapK(flattenEitherT[Observable, ErrorType])
 
-  //TODO why not? makes compiler hang
-  //  implicit def toWithEitherT[F[_], ErrorType](implicit monad: MonadError[F, Throwable], mapping: ResultMapping[RequestOperation[ErrorType, ?], EitherT[F, ErrorType, ?]]): ResultMapping[RequestOperation[ErrorType, ?], F] = mapping.mapK(Lambda[EitherT[F, ErrorType, ?] ~> F](f => monad.flatMap(f.value) {
-  //    case Right(v) => monad.pure(v)
-  //    case Left(err) => monad.raiseError(TransportException.RequestError(s"Error in request: $err"))
-  //  }))
+  //TODO: does not resolve?
+  //    implicit def toF[F[_], ErrorType](implicit monad: MonadError[F, Throwable]): ResultMapping[EitherT[F, ErrorType, ?], F] = ResultMapping(flattenEitherT[F, ErrorType])
+  //    implicit def toFromTo[From[_], To[_], ErrorType](implicit from: ResultMapping[RequestOperation[ErrorType, ?], EitherT[From, ErrorType, ?]], to: ResultMapping[EitherT[From, ErrorType, ?], To]): ResultMapping[RequestOperation[ErrorType, ?], To] = from.mapK(to)
+  //TODO makes compiler hang
+//  implicit def toF[F[_], ErrorType](implicit monad: MonadError[F, Throwable], mapping: ResultMapping[RequestOperation[ErrorType, ?], EitherT[F, ErrorType, ?]]): ResultMapping[RequestOperation[ErrorType, ?], F] = mapping.mapK(flattenEitherT[F, ErrorType])
   private def flattenEitherT[F[_], ErrorType](implicit monad: MonadError[F, Throwable]): EitherT[F, ErrorType, ?] ~> F = Lambda[EitherT[F, ErrorType, ?] ~> F](f => monad.flatMap(f.value) {
     case Right(v) => monad.pure(v)
     case Left(err) => monad.raiseError(TransportException.RequestError(s"Error in request: $err"))
