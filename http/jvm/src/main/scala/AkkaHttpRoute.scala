@@ -1,5 +1,6 @@
 package covenant.http
 
+import akka.{Done, NotUsed}
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.marshalling.sse.EventStreamMarshalling._
 import akka.http.scaladsl.model._
@@ -7,13 +8,16 @@ import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.unmarshalling._
-import akka.stream.OverflowStrategy
-import akka.stream.scaladsl.{Source, SourceQueueWithComplete}
+import akka.stream.{OverflowStrategy, QueueOfferResult}
+import akka.stream.scaladsl.{Flow, Source, SourceQueueWithComplete}
 import covenant._
 import covenant.api._
 import covenant.http.api._
 import covenant.util.StopWatch
-import monix.execution.Scheduler
+import monix.execution.{Ack, Scheduler}
+import monix.reactive.{Observable, Observer}
+import monix.reactive.observers.Subscriber
+import monix.reactive.subjects.{PublishSubject, Subject}
 import sloth._
 
 import scala.concurrent.duration.{FiniteDuration, _}
@@ -98,24 +102,8 @@ object AkkaHttpRoute {
                   complete(error)
               }
               case RequestResponse.Stream(observable) =>
-                val (outgoing, outgoingMaterialized) = {
-                  val promise = Promise[SourceQueueWithComplete[ServerSentEvent]]
-                  val source = Source.queue[ServerSentEvent](config.bufferSize, config.overflowStrategy)
-                                    .mapMaterializedValue { m => promise.success(m); m }
-                  (source, promise.future)
-                }
-                outgoingMaterialized.onComplete {
-                  case Success(queue) =>
-                    //TODO error, backpressure protocol
-                    observable //TODO cancel subscription?
-                      .map(asText.write)
-                      .doOnComplete(() => queue.complete())
-                      .doOnError(t => queue fail t) //TODO: sent error code?
-                      .foreach(text => queue offer ServerSentEvent(text))
-                  case Failure(e) => ??? //TODO error code?
-                }
-
-                complete(outgoing.keepAlive(config.keepAliveInterval, () => ServerSentEvent.heartbeat))
+                val source = Source.fromPublisher(observable.map(t => ServerSentEvent(asText.write(t))).toReactivePublisher)
+                complete(source.keepAlive(config.keepAliveInterval, () => ServerSentEvent.heartbeat))
             }
             case Left(e) =>
               val error = recoverServerFailure.lift(e)
