@@ -1,9 +1,8 @@
 package covenant
 
 import cats.data.EitherT
-import cats.{MonadError, ~>}
-import cats.syntax.monadError._
 import cats.implicits._
+import cats.{MonadError, ~>}
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.reactive.Observable

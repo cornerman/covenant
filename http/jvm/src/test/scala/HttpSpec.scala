@@ -73,8 +73,8 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 
     object Frontend {
       val transport = AkkaHttpRequestTransport[ByteBuffer](s"http://localhost:$port")
-//      val client = Client(transport, new DefaultLogHandler[HttpErrorCode])
-//      val api = client.wire[Api[Future]]
+      val client = Client(transport, new DefaultLogHandler[HttpErrorCode])
+      val api = client.wire[Api[Future]]
     }
 
     Backend.run()

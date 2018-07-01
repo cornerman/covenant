@@ -73,7 +73,7 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
       case RouterResult.Failure(arguments, slothError) =>
         val error = api.serverFailure(slothError)
         scribe.warn(s"$client -->[failure] ${requestLogLine(path, arguments, error)}. Took ${watch.readHuman}.")
-        Response(state, Task(Left(error)))
+        Response(state, Task(EventualResult.Error(error)))
 
     }
   }

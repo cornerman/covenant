@@ -1,6 +1,5 @@
 package covenant.http
 
-import akka.{Done, NotUsed}
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.marshalling.sse.EventStreamMarshalling._
 import akka.http.scaladsl.model._
@@ -8,20 +7,17 @@ import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.unmarshalling._
-import akka.stream.{OverflowStrategy, QueueOfferResult}
-import akka.stream.scaladsl.{Flow, Source, SourceQueueWithComplete}
+import akka.stream.OverflowStrategy
+import akka.stream.scaladsl.Source
 import covenant._
 import covenant.api._
 import covenant.http.api._
 import covenant.util.StopWatch
-import monix.execution.{Ack, Scheduler}
-import monix.reactive.{Observable, Observer}
-import monix.reactive.observers.Subscriber
-import monix.reactive.subjects.{PublishSubject, Subject}
+import monix.execution.Scheduler
 import sloth._
 
+import scala.concurrent.Future
 import scala.concurrent.duration.{FiniteDuration, _}
-import scala.concurrent.{Future, Promise}
 import scala.util.{Failure, Success}
 
 case class HttpServerConfig(bufferSize: Int = 100, overflowStrategy: OverflowStrategy = OverflowStrategy.fail, keepAliveInterval: FiniteDuration = 30 seconds)

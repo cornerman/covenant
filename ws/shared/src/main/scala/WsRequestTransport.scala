@@ -1,8 +1,8 @@
 package covenant.ws
 
-import cats.data.EitherT
 import chameleon._
 import covenant.RequestOperation
+import monix.eval.Task
 import monix.execution.Scheduler
 import monix.reactive.Observable
 import mycelium.client._
@@ -21,11 +21,19 @@ sealed class WsRequestTransport[PickleType, ErrorType](
   def requestWith(sendType: SendType = SendType.WhenConnected, timeout: Option[FiniteDuration] = Some(30 seconds)) = new RequestTransport[PickleType, RequestOperation[ErrorType, ?]] {
     def apply(request: Request[PickleType]): RequestOperation[ErrorType, PickleType] = {
       val responseStream = mycelium.send(request.path, request.payload, sendType, timeout)
-      RequestOperation(responseStream.lastL, responseStream)
+      RequestOperation(
+        responseStream.flatMap {
+          case Right(o) => o.lastL.map(Right.apply)
+          case Left(err) => Task.pure(Left(err))
+        },
+        Observable.fromTask(responseStream).flatMap {
+          case Right(o) => o.map(Right.apply)
+          case Left(err) => Observable.pure(Left(err))
+        })
     }
   }
 
-  def observable = mycelium.observable
+  def connected = mycelium.connected
 }
 object WsRequestTransport {
   def fromConnection[PickleType, ErrorType](

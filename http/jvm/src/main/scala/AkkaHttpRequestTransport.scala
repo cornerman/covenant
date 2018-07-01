@@ -6,12 +6,11 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.sse.ServerSentEvent
-import akka.http.scaladsl.unmarshalling.{Unmarshal, _}
 import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
+import akka.http.scaladsl.unmarshalling.{Unmarshal, _}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import akka.util.ByteStringBuilder
-import cats.data.EitherT
 import covenant._
 import monix.eval.Task
 import monix.execution.Ack

@@ -4,21 +4,16 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.OverflowStrategy
-import cats.data.EitherT
-import cats.implicits._
 import chameleon._
 import covenant.RequestResponse
 import covenant.api._
 import covenant.ws.api._
 import monix.eval.Task
 import monix.execution.Scheduler
-import monix.reactive.Observable
 import mycelium.core._
 import mycelium.core.message._
 import mycelium.server._
 import sloth._
-
-import scala.concurrent.Future
 
 object AkkaWsRoute {
   case class UnhandledServerFailure(failure: ServerFailure) extends Exception(s"Unhandled server failure: $failure")
@@ -60,14 +55,14 @@ object AkkaWsRoute {
         router(Request(path, payload)).toEither match {
           case Right(res) => res match {
             case RequestResponse.Single(task) =>
-              val recoveredResult = task.map(Right.apply).onErrorRecover(recoverThrowable andThen Left.apply)
+              val recoveredResult = task.map(EventualResult.Single.apply).onErrorRecover(recoverThrowable andThen EventualResult.Error.apply)
               Response(recoveredResult)
             case RequestResponse.Stream(observable) =>
-              val recoveredResult = observable.map(Right.apply).onErrorRecover(recoverThrowable andThen Left.apply)
-              Response(recoveredResult)
+              val recoveredResult = observable
+              Response(Task.pure(EventualResult.Stream(recoveredResult)))
           }
           case Left(failure) => recoverServerFailure.lift(failure) match {
-            case Some(err) => Response(Task.pure(Left(err)))
+            case Some(err) => Response(Task.pure(EventualResult.Error(err)))
             case None => Response(Task.raiseError(UnhandledServerFailure(failure)))
           }
 

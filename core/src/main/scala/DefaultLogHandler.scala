@@ -1,8 +1,8 @@
 package covenant
 
-import cats.implicits._
 import covenant.util._
 import sloth.LogHandler
+import cats.implicits._
 import cats.syntax.monadError._
 
 class DefaultLogHandler[ErrorType] extends LogHandler[RequestOperation[ErrorType, ?]] {
