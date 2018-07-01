@@ -4,6 +4,7 @@ import covenant.api._
 import covenant.util.StopWatch
 import monix.eval.Task
 import monix.execution.Scheduler
+import mycelium.core.EventualResult
 import mycelium.server._
 import sloth._
 

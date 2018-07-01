@@ -9,7 +9,7 @@ import boopickle.Default._
 import cats.data.EitherT
 import chameleon.ext.boopickle._
 import covenant.ws.{AkkaWsRequestTransport, AkkaWsRoute}
-import covenant.{DefaultLogHandler, RequestRouter}
+import covenant.{RequestClient, RequestRouter}
 import monix.execution.Scheduler
 import monix.reactive.Observable
 import mycelium.client._
@@ -89,7 +89,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     object Frontend {
       type Result[T] = EitherT[Future, ApiError, T]
       val transport = AkkaWsRequestTransport[ByteBuffer, ApiError](s"ws://localhost:$port/ws")
-      val client = Client(transport, DefaultLogHandler[ApiError])
+      val client = RequestClient[ByteBuffer, ApiError](transport)
       val api: Api[Result] = client.wire[Api[Result]]
     }
 
@@ -120,14 +120,14 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     object Frontend {
       val config = WebsocketClientConfig()
       val transport = AkkaWsRequestTransport[ByteBuffer, ApiError](s"ws://localhost:$port/ws")
-      val client = Client(transport.requestWith(timeout = None), DefaultLogHandler[ApiError])
+      val client = RequestClient[ByteBuffer, ApiError](transport.requestWith(timeout = None))
       val api: Api[Observable] = client.wire[Api[Observable]]
     }
 
     Backend.run()
 
-    val funs1 = Frontend.api.fun(1).foldLeftL[List[Int]](Nil)((l,i) => l :+ i).runAsync
-    val funs2 = Frontend.api.fun(1, 2).foldLeftL[List[Int]](Nil)((l,i) => l :+ i).runAsync
+    val funs1 = Frontend.api.fun(1).toListL.runAsync
+    val funs2 = Frontend.api.fun(1, 2).toListL.runAsync
 
     for {
       funs1 <- funs1

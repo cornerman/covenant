@@ -16,6 +16,7 @@ class HashMapEventDistributor[Event] extends EventDistributor[Event] {
 
   def subscribe(client: ClientId): Unit = {
     subscribers.put(client, PublishSubject[List[Event]]())
+    ()
   }
 
   def unsubscribe(client: ClientId): Unit = {
@@ -28,6 +29,7 @@ class HashMapEventDistributor[Event] extends EventDistributor[Event] {
 
     subscribers.forEach { (client, subject) =>
       if (origin.fold(true)(_ != client)) subject.onNext(events)
+      ()
     }
   }
 }

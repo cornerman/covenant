@@ -2,8 +2,10 @@ package covenant.http
 
 import covenant._
 import monix.eval.Task
+import monix.execution.Scheduler
 import monix.reactive.Observable
-import monix.reactive.subjects.PublishSubject
+import monix.reactive.observables.ConnectableObservable
+import monix.reactive.subjects.{ConcurrentSubject, PublishSubject}
 import org.scalajs.dom
 import org.scalajs.dom.crypto.BufferSource
 import org.scalajs.dom.experimental.{Request => _, _}
@@ -18,7 +20,7 @@ object JsHttpRequestTransport {
   case object EventSourceException extends Exception
 
   def apply[PickleType](baseUri: String)(implicit
-    ec: ExecutionContext,
+    scheduler: Scheduler,
     asText: AsTextMessage[PickleType],
     builder: JsMessageBuilder[PickleType]
   ) = RequestTransport[PickleType, RequestOperation[HttpErrorCode, ?]] { request =>
@@ -36,7 +38,7 @@ object JsHttpRequestTransport {
     val message = builder.pack(request.payload)
     val bodyInit: BodyInit = (message: Any) match {
       case s: String => s
-      case a: ArrayBuffer => a.asInstanceOf[BufferSource] //TODO: why does bodyinit not accept ArrayBuffer?
+      case a: ArrayBuffer => a: BufferSource //TODO: why does bodyinit not accept ArrayBuffer?
       case b: dom.Blob => b
     }
 
@@ -47,25 +49,31 @@ object JsHttpRequestTransport {
     ))
 
     response.toFuture.flatMap { response =>
-      if (response.status == 200) response.body.getReader().read().toFuture.flatMap { chunk =>
+      response.body.getReader().read().toFuture.flatMap { chunk =>
         val buffer = chunk.value.buffer
-        builder.unpack(buffer).flatMap {
+        if (response.ok) builder.unpack(buffer).flatMap {
           case Some(v) => Future.successful(Right(v))
           case None => Future.failed(DeserializeException)
+        } else JsMessageBuilder.JsMessageBuilderString.unpack(buffer).flatMap {
+          case Some(v) => Future.successful(Left(HttpErrorCode(response.status, v)))
+          case None => Future.failed(DeserializeException)
         }
-      } else Future.successful(Left(HttpErrorCode(response.status)))
+      }
     }
   }
 
   //TODO HttpErrorCode?
+  //TODO is reconnecting?
+  //TODO cancel?
+  //TODO close/complete?
   private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
+    scheduler: Scheduler,
     asText: AsTextMessage[PickleType]
   ): Observable[PickleType] = Observable.defer {
     val uri = (baseUri :: request.path).mkString("/")
     val source = new EventSource(uri)
 
-    //TODO backpressure, error, complete - is reconnecting?
-    val subject = PublishSubject[PickleType]
+    val subject = ConcurrentSubject.publish[PickleType]
     source.onerror = { _ =>
       if (source.readyState == EventSource.CLOSED) {
         scribe.warn(s"EventSource got error")
@@ -85,6 +93,10 @@ object JsHttpRequestTransport {
       }
     }
 
-    subject
+    val connectObservable = ConnectableObservable.cacheUntilConnect(source = subject, subject = PublishSubject[PickleType]())
+    connectObservable.doAfterSubscribe { () =>
+      connectObservable.connect()
+      ()
+    }
   }
 }

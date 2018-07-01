@@ -7,13 +7,13 @@ import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import boopickle.Default._
 import chameleon.ext.boopickle._
-import covenant.{DefaultLogHandler, RequestRouter}
+import covenant.{RequestClient, RequestRouter}
 import covenant.api.ServerDsl
 import covenant.http._
 import monix.execution.Scheduler
 import monix.reactive.Observable
 import org.scalatest._
-import sloth._
+import sloth.{ClientFailure, ClientFailureConvert, PathName}
 
 import scala.concurrent.Future
 
@@ -53,6 +53,14 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
   type State = String
 
   case class ApiError(msg: String)
+  object ApiError {
+    implicit def clientFailureConvert = new ClientFailureConvert[ApiError] {
+      def convert(failure: ClientFailure) = ApiError(s"Sloth failure: $failure")
+    }
+    implicit def httpErrorCodeConvert = new HttpErrorCodeConvert[ApiError] {
+      def convert(failure: HttpErrorCode) = ApiError(s"Http failure: $failure")
+    }
+  }
 
   object Dsl extends ServerDsl[Event, State]
 
@@ -72,22 +80,20 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     }
 
     object Frontend {
-      val transport = AkkaHttpRequestTransport[ByteBuffer](s"http://localhost:$port")
-      val client = Client(transport, new DefaultLogHandler[HttpErrorCode])
+      val transport = AkkaHttpRequestTransport[ByteBuffer, ApiError](s"http://localhost:$port")
+      val client = RequestClient(transport)
       val api = client.wire[Api[Future]]
     }
 
     Backend.run()
 
-   //TODO
-//    for {
-//      fun <- Frontend.api.fun(1)
-//      fun2 <- Frontend.api.fun(1, 2)
-//    } yield {
-//      fun mustEqual 1
-//      fun2 mustEqual 3
-//    }
-   ???
+    for {
+      fun <- Frontend.api.fun(1)
+      fun2 <- Frontend.api.fun(1, 2)
+    } yield {
+      fun mustEqual 1
+      fun2 mustEqual 3
+    }
   }
 
  "stream run" in {
@@ -103,26 +109,23 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     }
 
     object Frontend {
-      val transport = AkkaHttpRequestTransport[ByteBuffer](s"http://localhost:$port")
-//      val client = Client(transport, new DefaultLogHandler[HttpErrorCode])
-//      val api = client.wire[Api[Observable]]
+      val transport = AkkaHttpRequestTransport[ByteBuffer, ApiError](s"http://localhost:$port")
+      val client = RequestClient(transport)
+      val api = client.wire[Api[Observable]]
     }
 
     Backend.run()
 
-   //TODO
-//    val funs1 = Frontend.api.fun(13).foldLeftL[List[Int]](Nil)((l,i) => l :+ i).runAsync
-//    val funs2 = Frontend.api.fun(7, 9).foldLeftL[List[Int]](Nil)((l,i) => l :+ i).runAsync
-//    Thread.sleep(6000)
-//
-//    for {
-//      funs1 <- funs1
-//      funs2 <- funs2
-//    } yield {
-//      funs1 mustEqual List(13, 2, 3)
-//      funs2 mustEqual List(16, 2, 3)
-//    }
-   ???
+    val funs1 = Frontend.api.fun(13).toListL.runAsync
+    val funs2 = Frontend.api.fun(7, 9).toListL.runAsync
+
+    for {
+      funs1 <- funs1
+      funs2 <- funs2
+    } yield {
+      funs1 mustEqual List(13, 2, 3)
+      funs2 mustEqual List(16, 2, 3)
+    }
   }
 
  // "api run" in {

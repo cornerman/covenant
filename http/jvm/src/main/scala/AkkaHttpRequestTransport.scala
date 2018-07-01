@@ -13,8 +13,9 @@ import akka.stream.scaladsl.Source
 import akka.util.ByteStringBuilder
 import covenant._
 import monix.eval.Task
-import monix.execution.Ack
+import monix.execution.{Ack, Scheduler}
 import monix.reactive.Observable
+import monix.reactive.observables.ConnectableObservable
 import monix.reactive.subjects.PublishSubject
 import sloth._
 
@@ -22,28 +23,30 @@ import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 object AkkaHttpRequestTransport {
-  def apply[PickleType](baseUri: String)(implicit
+  def apply[PickleType, ErrorType](baseUri: String)(implicit
+    scheduler: Scheduler,
     system: ActorSystem,
     asText: AsTextMessage[PickleType],
     materializer: ActorMaterializer,
     unmarshaller: FromByteStringUnmarshaller[PickleType],
-    marshaller: ToEntityMarshaller[PickleType]) = RequestTransport[PickleType, RequestOperation[HttpErrorCode, ?]] { request =>
+    marshaller: ToEntityMarshaller[PickleType],
+    errorCodeConvert: HttpErrorCodeConvert[ErrorType]) = RequestTransport[PickleType, RequestOperation[ErrorType, ?]] { request =>
 
     RequestOperation(
-      sendRequest(baseUri, request),
+      sendRequest(baseUri, request).map(_.left.map(errorCodeConvert.convert)),
       Observable.fromTask(sendStreamRequest(baseUri, request)).flatMap {
         case Right(v) => v.map(Right.apply)
-        case Left(err) => Observable(Left(err))
+        case Left(err) => Observable(Left(errorCodeConvert.convert(err)))
       })
   }
 
   // TODO: unify both send methods and branch in response?
   private def sendRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
+    scheduler: Scheduler,
     system: ActorSystem,
     materializer: ActorMaterializer,
     unmarshaller: FromByteStringUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]): Task[Either[HttpErrorCode, PickleType]] = Task.deferFuture {
-    import system.dispatcher
 
     val uri = (baseUri :: request.path).mkString("/")
     val entity = Marshal(request.payload).to[MessageEntity]
@@ -59,18 +62,18 @@ object AkkaHttpRequestTransport {
               }.map(Right.apply)
             case code =>
               response.discardEntityBytes()
-              Future.successful(Left(HttpErrorCode(code.intValue)))
+              Future.successful(Left(HttpErrorCode(code.intValue, code.reason)))
           }
         }
     }
   }
 
   private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
+    scheduler: Scheduler,
     system: ActorSystem,
     materializer: ActorMaterializer,
     asText: AsTextMessage[PickleType],
     marshaller: ToEntityMarshaller[PickleType]): Task[Either[HttpErrorCode, Observable[PickleType]]] = Task.deferFuture {
-    import system.dispatcher
 
     val uri = (baseUri :: request.path).mkString("/")
     val entity = Marshal(request.payload).to[MessageEntity]
@@ -84,25 +87,25 @@ object AkkaHttpRequestTransport {
               Unmarshal(response).to[Source[ServerSentEvent, NotUsed]].map(Right.apply)
             case code =>
               response.discardEntityBytes()
-              Future.successful(Left(HttpErrorCode(code.intValue())))
+              Future.successful(Left(HttpErrorCode(code.intValue, code.reason)))
           }
         }
 
       requested.map(_.map { source =>
-        val subject = PublishSubject[PickleType]
-        source.runFoldAsync[Unit](()) { (_, value) =>
+        val subject = PublishSubject[PickleType]()
+        source.runFoldAsync[Future[Ack]](Ack.Continue) { (_, value) =>
           val pickled = asText.read(value.data)
-          subject.onNext(pickled).flatMap {
-            case Ack.Continue => Future.successful(())
-            case Ack.Stop =>
-              scribe.warn("Cannot push further messages, received Stop.")
-              Future.failed(TransportException.StoppedDownstream)
-          }
+          subject.onNext(pickled)
         }.onComplete {
           case Success(_) => subject.onComplete()
           case Failure(err) => subject.onError(err)
         }
-        subject
+
+        val connectObservable = ConnectableObservable.cacheUntilConnect(source = subject, subject = PublishSubject[PickleType]())
+        connectObservable.doAfterSubscribe { () =>
+          connectObservable.connect()
+          ()
+        }
       })
     }
   }
