@@ -93,6 +93,8 @@ object AkkaHttpRequestTransport {
 
       requested.map(_.map { source =>
         val subject = PublishSubject[PickleType]()
+        val connectObservable = ConnectableObservable.cacheUntilConnect(source = subject, subject = PublishSubject[PickleType])
+
         source.runFoldAsync[Future[Ack]](Ack.Continue) { (_, value) =>
           val pickled = asText.read(value.data)
           subject.onNext(pickled)
@@ -101,7 +103,6 @@ object AkkaHttpRequestTransport {
           case Failure(err) => subject.onError(err)
         }
 
-        val connectObservable = ConnectableObservable.cacheUntilConnect(source = subject, subject = PublishSubject[PickleType]())
         connectObservable.doAfterSubscribe { () =>
           connectObservable.connect()
           ()
