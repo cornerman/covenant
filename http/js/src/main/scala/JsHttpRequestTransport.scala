@@ -27,7 +27,7 @@ object JsHttpRequestTransport {
 
     RequestOperation(
       sendRequest(baseUri, request),
-      Task.pure(Right(sendStreamRequest(baseUri, request)))) //TODO
+      sendStreamRequest(baseUri, request).map(Right.apply)) //TODO
   }
 
   private def sendRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
@@ -71,11 +71,13 @@ object JsHttpRequestTransport {
   private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
     scheduler: Scheduler,
     asText: AsTextMessage[PickleType]
-  ): Observable[PickleType] = Observable.defer {
+  ): Task[Observable[PickleType]] = Task {
     val uri = (baseUri :: request.path).mkString("/")
     val source = new EventSource(uri)
 
     val subject = ConcurrentSubject.publish[PickleType]
+    val connectObservable = ConnectableObservable.cacheUntilConnect(source = subject, subject = PublishSubject[PickleType]())
+
     source.onerror = { _ =>
       scribe.warn("EventSource got error")
       if (source.readyState == EventSource.CLOSED) {
@@ -95,7 +97,6 @@ object JsHttpRequestTransport {
       }
     }
 
-    val connectObservable = ConnectableObservable.cacheUntilConnect(source = subject, subject = PublishSubject[PickleType]())
     connectObservable.doAfterSubscribe { () =>
       connectObservable.connect()
       ()
