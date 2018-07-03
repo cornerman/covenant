@@ -23,21 +23,17 @@ import scala.concurrent.Future
 import scala.util.{Failure, Success}
 
 object AkkaHttpRequestTransport {
-  def apply[PickleType, ErrorType](baseUri: String)(implicit
+  def apply[PickleType](baseUri: String)(implicit
     scheduler: Scheduler,
     system: ActorSystem,
     asText: AsTextMessage[PickleType],
     materializer: ActorMaterializer,
     unmarshaller: FromByteStringUnmarshaller[PickleType],
-    marshaller: ToEntityMarshaller[PickleType],
-    errorCodeConvert: HttpErrorCodeConvert[ErrorType]) = RequestTransport[PickleType, RequestOperation[ErrorType, ?]] { request =>
+    marshaller: ToEntityMarshaller[PickleType]) = RequestTransport[PickleType, RequestOperation[HttpErrorCode, ?]] { request =>
 
     RequestOperation(
-      sendRequest(baseUri, request).map(_.left.map(errorCodeConvert.convert)),
-      Observable.fromTask(sendStreamRequest(baseUri, request)).flatMap {
-        case Right(v) => v.map(Right.apply)
-        case Left(err) => Observable(Left(errorCodeConvert.convert(err)))
-      })
+      sendRequest(baseUri, request),
+      sendStreamRequest(baseUri, request))
   }
 
   // TODO: unify both send methods and branch in response?
@@ -61,7 +57,7 @@ object AkkaHttpRequestTransport {
                 Unmarshal(b.result).to[PickleType]
               }.map(Right.apply)
             case code =>
-              response.discardEntityBytes()
+              response.discardEntityBytes() // we are not going to read the entity.dataBytes, therefore discard explicitly.
               Future.successful(Left(HttpErrorCode(code.intValue, code.reason)))
           }
         }

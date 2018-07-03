@@ -25,7 +25,9 @@ object JsHttpRequestTransport {
     builder: JsMessageBuilder[PickleType]
   ) = RequestTransport[PickleType, RequestOperation[HttpErrorCode, ?]] { request =>
 
-    RequestOperation(sendRequest(baseUri, request), sendStreamRequest(baseUri, request).map(Right.apply))
+    RequestOperation(
+      sendRequest(baseUri, request),
+      Task.pure(Right(sendStreamRequest(baseUri, request)))) //TODO
   }
 
   private def sendRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
@@ -75,8 +77,8 @@ object JsHttpRequestTransport {
 
     val subject = ConcurrentSubject.publish[PickleType]
     source.onerror = { _ =>
+      scribe.warn("EventSource got error")
       if (source.readyState == EventSource.CLOSED) {
-        scribe.warn(s"EventSource got error")
         subject.onError(EventSourceException)
       }
     }

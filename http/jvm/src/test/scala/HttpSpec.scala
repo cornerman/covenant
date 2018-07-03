@@ -22,7 +22,6 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 
   trait Api[Result[_]] {
     def fun(a: Int): Result[Int]
-    @PathName("funWithDefault")
     def fun(a: Int, b: Int): Result[Int] = fun(a + b)
   }
 
@@ -80,7 +79,7 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     }
 
     object Frontend {
-      val transport = AkkaHttpRequestTransport[ByteBuffer, ApiError](s"http://localhost:$port")
+      val transport = AkkaHttpRequestTransport[ByteBuffer](s"http://localhost:$port")
       val client = RequestClient(transport)
       val api = client.wire[Api[Future]]
     }
@@ -109,7 +108,7 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     }
 
     object Frontend {
-      val transport = AkkaHttpRequestTransport[ByteBuffer, ApiError](s"http://localhost:$port")
+      val transport = AkkaHttpRequestTransport[ByteBuffer](s"http://localhost:$port")
       val client = RequestClient(transport)
       val api = client.wire[Api[Observable]]
     }

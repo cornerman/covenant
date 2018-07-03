@@ -28,10 +28,10 @@ sealed class WsRequestTransport[PickleType, ErrorType](
           case EventualResult.Error(err) => Task.pure(Left(err))
           case EventualResult.Stream(_) => Task.raiseError(TransportException.UnexpectedResult(s"Request (${request.path}) expects single result value, but got stream result"))
         },
-        Observable.fromTask(responseStream).flatMap {
-          case EventualResult.Stream(o) => o.map(Right.apply)
-          case EventualResult.Error(err) => Observable.pure(Left(err))
-          case EventualResult.Single(_) => Observable.raiseError(TransportException.UnexpectedResult(s"Request (${request.path}) expects stream result, but got single result value"))
+        responseStream.map {
+          case EventualResult.Stream(o) => Right(o)
+          case EventualResult.Error(err) => Left(err)
+          case EventualResult.Single(_) => Right(Observable.raiseError(TransportException.UnexpectedResult(s"Request (${request.path}) expects stream result, but got single result value")))
         })
     }
   }
