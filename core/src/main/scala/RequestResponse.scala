@@ -7,36 +7,48 @@ import sloth._
 
 import scala.concurrent.{ExecutionContext, Future}
 
-sealed trait RequestResponse[ErrorType, T] {
-  def map[R](f: T => R): RequestResponse[ErrorType, R]
-  def mapError[E](f: ErrorType => E): RequestResponse[E, T]
+sealed trait RequestResponse[+State, +ErrorType, +T] {
+  def map[R](f: T => R): RequestResponse[State, ErrorType, R]
+  def mapError[E](f: ErrorType => E): RequestResponse[State, E, T]
 }
 object RequestResponse extends RequestType {
-  case class Single[ErrorType, T](task: SingleF[Task, ErrorType, T]) extends RequestResponse[ErrorType, T] {
-    def map[R](f: T => R): Single[ErrorType, R] = copy(task.map(_.map(f)))
-    def mapError[E](f: ErrorType => E): Single[E, T] = copy(task.map(_.left.map(f)))
+  sealed trait Value[+ErrorType, +T] extends RequestResponse[Nothing, ErrorType, T] {
+    def map[R](f: T => R): Value[ErrorType, R]
+    def mapError[E](f: ErrorType => E): Value[E, T]
   }
-  case class Stream[ErrorType, T](task: StreamF[Task, Observable, ErrorType, T]) extends RequestResponse[ErrorType, T] {
-    def map[R](f: T => R): Stream[ErrorType, R] = copy(task.map(_.map(_.map(f))))
-    def mapError[E](f: ErrorType => E): Stream[E, T] = copy(task.map(_.left.map(f)))
+  case class Single[ErrorType, T](task: SingleF[Task, ErrorType, T]) extends Value[ErrorType, T] {
+    def map[R](f: T => R): Single[ErrorType, R] = Single(task.map(_.map(f)))
+    def mapError[E](f: ErrorType => E): Single[E, T] = Single(task.map(_.left.map(f)))
+  }
+  case class Stream[ErrorType, T](task: StreamF[Task, Observable, ErrorType, T]) extends Value[ErrorType, T] {
+    def map[R](f: T => R): Stream[ErrorType, R] = Stream(task.map(_.map(_.map(f))))
+    def flatMap[R](f: T => R): Stream[ErrorType, R] = Stream(task.map(_.map(_.map(f))))
+    def mapError[E](f: ErrorType => E): Stream[E, T] = Stream(task.map(_.left.map(f)))
+  }
+  case class StateFunction[State, ErrorType, T](function: State => Value[ErrorType, T]) extends RequestResponse[State, ErrorType, T] {
+    def map[R](f: T => R): StateFunction[State, ErrorType, R] = StateFunction(function andThen (_.map(f)))
+    def mapError[E](f: ErrorType => E): StateFunction[State, E, T] = StateFunction(function andThen (_.mapError(f)))
   }
 
-  implicit def functor[ErrorType]: Functor[RequestResponse[ErrorType, ?]] = new Functor[RequestResponse[ErrorType, ?]] {
-    def map[A,B](fa: RequestResponse[ErrorType, A])(f: A => B): RequestResponse[ErrorType, B] = fa.map(f)
+  implicit def functor[State, ErrorType]: Functor[RequestResponse[State, ErrorType, ?]] = new Functor[RequestResponse[State, ErrorType, ?]] {
+    def map[A,B](fa: RequestResponse[State, ErrorType, A])(f: A => B): RequestResponse[State, ErrorType, B] = fa.map(f)
   }
 
-  implicit def fromTaskEither[ErrorType]: ResultMapping[SingleF[Task, ErrorType, ?], RequestResponse[ErrorType, ?]] = ResultMapping[SingleF[Task, ErrorType, ?], RequestResponse[ErrorType, ?]](Lambda[SingleF[Task, ErrorType, ?] ~> RequestResponse[ErrorType, ?]](Single(_)))
-  implicit def fromFutureEither[ErrorType](implicit ec: ExecutionContext): ResultMapping[SingleF[Future, ErrorType, ?], RequestResponse[ErrorType, ?]] = ResultMapping[SingleF[Future, ErrorType, ?], RequestResponse[ErrorType, ?]](Lambda[SingleF[Future, ErrorType, ?] ~> RequestResponse[ErrorType, ?]](f => Single(Task.fromFuture(f))))
-  implicit def fromTaskEitherObservable[ErrorType]: ResultMapping[StreamF[Task, Observable, ErrorType, ?], RequestResponse[ErrorType, ?]] = ResultMapping[StreamF[Task, Observable, ErrorType, ?], RequestResponse[ErrorType, ?]](Lambda[StreamF[Task, Observable, ErrorType, ?] ~> RequestResponse[ErrorType, ?]](Stream(_)))
-  implicit def formFutureEitherObservable[ErrorType](implicit ec: ExecutionContext): ResultMapping[StreamF[Future, Observable, ErrorType, ?], RequestResponse[ErrorType, ?]] = ResultMapping[StreamF[Future, Observable, ErrorType, ?], RequestResponse[ErrorType, ?]](Lambda[StreamF[Future, Observable, ErrorType, ?] ~> RequestResponse[ErrorType, ?]](f => Stream(Task.fromFuture(f))))
+  implicit def fromTaskEither[ErrorType, State]: ResultMapping[SingleF[Task, ErrorType, ?], RequestResponse[State, ErrorType, ?]] = ResultMapping[SingleF[Task, ErrorType, ?], RequestResponse[State, ErrorType, ?]](Lambda[SingleF[Task, ErrorType, ?] ~> RequestResponse[State, ErrorType, ?]](Single(_)))
+  implicit def fromFutureEither[ErrorType, State]: ResultMapping[SingleF[Future, ErrorType, ?], RequestResponse[State, ErrorType, ?]] = ResultMapping[SingleF[Future, ErrorType, ?], RequestResponse[State, ErrorType, ?]](Lambda[SingleF[Future, ErrorType, ?] ~> RequestResponse[State, ErrorType, ?]](f => Single(Task.fromFuture(f))))
+  implicit def fromTaskEitherObservable[ErrorType, State]: ResultMapping[StreamF[Task, Observable, ErrorType, ?], RequestResponse[State, ErrorType, ?]] = ResultMapping[StreamF[Task, Observable, ErrorType, ?], RequestResponse[State, ErrorType, ?]](Lambda[StreamF[Task, Observable, ErrorType, ?] ~> RequestResponse[State, ErrorType, ?]](Stream(_)))
+  implicit def formFutureEitherObservable[ErrorType, State]: ResultMapping[StreamF[Future, Observable, ErrorType, ?], RequestResponse[State, ErrorType, ?]] = ResultMapping[StreamF[Future, Observable, ErrorType, ?], RequestResponse[State, ErrorType, ?]](Lambda[StreamF[Future, Observable, ErrorType, ?] ~> RequestResponse[State, ErrorType, ?]](f => Stream(Task.fromFuture(f))))
 
-  //TODO contramap?
+  //TODO contramap on resultmapping?
   //TODO why not Nothing as ErrorType? is covariant
-  implicit def fromTask[ErrorType]: ResultMapping[Task, RequestResponse[ErrorType, ?]] = ResultMapping(Lambda[Task ~> RequestResponse[ErrorType, ?]](t => Single(t.map(Right.apply))))
-  implicit def fromFuture[ErrorType](implicit ec: ExecutionContext): ResultMapping[Future, RequestResponse[ErrorType, ?]] = ResultMapping(Lambda[Future ~> RequestResponse[ErrorType, ?]](f => Single(Task.fromFuture(f).map(Right.apply))))
-  implicit def fromObservable[ErrorType]: ResultMapping[Observable, RequestResponse[ErrorType, ?]] = ResultMapping(Lambda[Observable ~> RequestResponse[ErrorType, ?]](o => Stream(Task.pure(Right(o)))))
+  implicit def fromTask[ErrorType, State]: ResultMapping[Task, RequestResponse[State, ErrorType, ?]] = fromTaskEither.contramapK(Lambda[Task ~> SingleF[Task, ErrorType, ?]](_.map(Right.apply)))
+  implicit def fromFuture[ErrorType, State](implicit ec: ExecutionContext): ResultMapping[Future, RequestResponse[State, ErrorType, ?]] = fromFutureEither.contramapK(Lambda[Future ~> SingleF[Future, ErrorType, ?]](_.map(Right.apply)))
+  implicit def fromObservable[ErrorType, State]: ResultMapping[Observable, RequestResponse[State, ErrorType, ?]] = fromTaskEitherObservable.contramapK(Lambda[Observable ~> StreamF[Task, Observable, ErrorType, ?]](o => Task.pure(Right(o))))
+
+  implicit def fromStateFunction[ErrorType, State, F[_]](implicit mapping: ResultMapping[F, RequestResponse[State, ErrorType, ?]]): ResultMapping[Lambda[T => State => F[T]], RequestResponse[State, ErrorType, ?]] = ResultMapping[Lambda[T => State => F[T]], RequestResponse[State, ErrorType, ?]](Lambda[Lambda[T => State => F[T]] ~> RequestResponse[State, ErrorType, ?]](_ => ???))
 }
 
 object RequestRouter {
-  def apply[PickleType, ErrorType]: Router[PickleType, RequestResponse[ErrorType, ?]] = Router[PickleType, RequestResponse[ErrorType, ?]]
+  def apply[PickleType, ErrorType]: Router[PickleType, RequestResponse[Unit, ErrorType, ?]] = Router[PickleType, RequestResponse[Unit, ErrorType, ?]]
+  def withState[PickleType, ErrorType, State]: Router[PickleType, RequestResponse[State, ErrorType, ?]] = Router[PickleType, RequestResponse[State, ErrorType, ?]]
 }

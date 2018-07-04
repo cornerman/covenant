@@ -80,7 +80,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
         .route[Api[Future]](FutureApiImpl)
 
       def run() = {
-        val route = AkkaWsRoute.fromRouter[ByteBuffer, ApiError](router)
+        val route = AkkaWsRoute.fromRouter(router)
         Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
       }
     }
@@ -111,7 +111,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
         .route[Api[Observable]](ObservableApiImpl)
 
       def run() = {
-        val route = AkkaWsRoute.fromRouter[ByteBuffer, ApiError](router)
+        val route = AkkaWsRoute.fromRouter(router)
         Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
       }
     }

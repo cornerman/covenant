@@ -13,12 +13,13 @@ import covenant._
 import covenant.api._
 import covenant.http.api._
 import covenant.util.StopWatch
+import monix.eval.Task
 import monix.execution.Scheduler
 import sloth._
 
 import scala.concurrent.Future
 import scala.concurrent.duration.{FiniteDuration, _}
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 case class HttpServerConfig(bufferSize: Int = 100, overflowStrategy: OverflowStrategy = OverflowStrategy.fail, keepAliveInterval: FiniteDuration = 30 seconds)
 
@@ -71,56 +72,74 @@ object AkkaHttpRoute {
 //   }
 
   def fromRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller : AsTextMessage](
-    router: Router[PickleType, RequestResponse[HttpErrorCode, ?]],
+    router: Router[PickleType, RequestResponse[Unit, HttpErrorCode, ?]],
     config: HttpServerConfig = HttpServerConfig(),
     recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode] = PartialFunction.empty,
     recoverThrowable: PartialFunction[Throwable, HttpErrorCode] = PartialFunction.empty
-  )(implicit scheduler: Scheduler): Route = responseRouterToRoute[PickleType](router, config, recoverServerFailure, recoverThrowable)
+  )(implicit scheduler: Scheduler): Route = responseRouterToRoute(router, config, _ => (), recoverServerFailure, recoverThrowable)
+
+  def fromRouterWithState[PickleType : FromRequestUnmarshaller : ToResponseMarshaller : AsTextMessage, State](
+    router: Router[PickleType, RequestResponse[State, HttpErrorCode, ?]],
+    config: HttpServerConfig = HttpServerConfig(),
+    requestToState: HttpRequest => State,
+    recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode] = PartialFunction.empty,
+    recoverThrowable: PartialFunction[Throwable, HttpErrorCode] = PartialFunction.empty
+  )(implicit scheduler: Scheduler): Route = responseRouterToRoute(router, config, requestToState, recoverServerFailure, recoverThrowable)
 
   //TODO split code, share with/without headers
-  private def responseRouterToRoute[PickleType : FromRequestUnmarshaller : ToResponseMarshaller](
-    router: Router[PickleType, RequestResponse[HttpErrorCode, ?]],
+  private def responseRouterToRoute[PickleType : FromRequestUnmarshaller : ToResponseMarshaller, State](
+    router: Router[PickleType, RequestResponse[State, HttpErrorCode, ?]],
     config: HttpServerConfig,
+    requestToState: HttpRequest => State,
     recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode],
     recoverThrowable: PartialFunction[Throwable, HttpErrorCode]
   )(implicit scheduler: Scheduler, asText: AsTextMessage[PickleType]): Route = {
     (path(Remaining) & post) { pathRest =>
       decodeRequest {
-        val path = pathRest.split("/").toList
-        entity(as[PickleType]) { entity =>
-          router(Request(path, entity)).toEither match {
-            case Right(result) => result match {
-              //TODO dupe
-              case RequestResponse.Single(task) => onComplete(task.runAsync) {
-                case Success(r) => r match {
-                  case Right(v) => complete(v)
-                  case Left(e) => complete(StatusCodes.custom(e.code, e.message))
-                }
-                case Failure(e) =>
-                  val error = recoverThrowable.lift(e)
-                    .fold[StatusCode](StatusCodes.InternalServerError)(e => StatusCodes.custom(e.code, e.message))
-                  complete(error)
+        extractRequest { request =>
+          val path = pathRest.split("/").toList
+          entity(as[PickleType]) { entity =>
+            router(Request(path, entity)).toEither match {
+              case Right(result) => result match {
+                case value: RequestResponse.Value[HttpErrorCode, PickleType] =>
+                  runRouteTask(responseToValue(config, value), recoverThrowable)
+                case stateFun: RequestResponse.StateFunction[State, HttpErrorCode, PickleType] =>
+                  val state: State = requestToState(request)
+                  val value = stateFun.function(state)
+                  runRouteTask(responseToValue(config, value), recoverThrowable)
               }
-              case RequestResponse.Stream(task) => onComplete(task.runAsync) {
-                case Success(r) => r match {
-                  case Right(observable) =>
-                    val source = Source.fromPublisher(observable.map(t => ServerSentEvent(asText.write(t))).toReactivePublisher)
-                    complete(source.keepAlive(config.keepAliveInterval, () => ServerSentEvent.heartbeat))
-                  case Left(e) => complete(StatusCodes.custom(e.code, e.message))
-                }
-                case Failure(e) =>
-                  val error = recoverThrowable.lift(e)
-                    .fold[StatusCode](StatusCodes.InternalServerError)(e => StatusCodes.custom(e.code, e.message))
-                  complete(error)
-              }
+              case Left(e) =>
+                val error = recoverServerFailure.lift(e)
+                  .fold[StatusCode](StatusCodes.BadRequest)(e => StatusCodes.custom(e.code, e.message))
+                complete(error)
             }
-            case Left(e) =>
-              val error = recoverServerFailure.lift(e)
-                .fold[StatusCode](StatusCodes.BadRequest)(e => StatusCodes.custom(e.code, e.message))
-              complete(error)
           }
         }
       }
+    }
+  }
+
+  private def runRouteTask[T](task: Task[Route], recoverThrowable: PartialFunction[Throwable, HttpErrorCode])(implicit scheduler: Scheduler): Route = onComplete(task.runAsync) {
+    case Success(r) => r
+    case Failure(t) =>
+      val error = recoverThrowable.lift(t)
+        .fold[StatusCode](StatusCodes.InternalServerError)(e => StatusCodes.custom(e.code, e.message))
+      complete(error)
+  }
+
+  private def responseToValue[PickleType : FromRequestUnmarshaller : ToResponseMarshaller](
+  config: HttpServerConfig,
+  value: RequestResponse.Value[HttpErrorCode, PickleType]
+  )(implicit scheduler: Scheduler, asText: AsTextMessage[PickleType]): Task[Route] = value match {
+    case RequestResponse.Single(task) => task.map {
+      case Right(v) => complete(v)
+      case Left(e) => complete(StatusCodes.custom(e.code, e.message))
+    }
+    case RequestResponse.Stream(task) => task.map {
+      case Right(observable) =>
+        val source = Source.fromPublisher(observable.map(t => ServerSentEvent(asText.write(t))).toReactivePublisher)
+        complete(source.keepAlive(config.keepAliveInterval, () => ServerSentEvent.heartbeat))
+      case Left(e) => complete(StatusCodes.custom(e.code, e.message))
     }
   }
 

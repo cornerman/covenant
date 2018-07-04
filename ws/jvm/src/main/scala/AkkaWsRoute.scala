@@ -34,8 +34,8 @@ object AkkaWsRoute {
 //    routerToRoute(router, handler, config)
 //  }
 
-  def fromRouter[PickleType : AkkaMessageBuilder, ErrorType](
-    router: Router[PickleType, RequestResponse[ErrorType, ?]],
+  def fromRouter[PickleType : AkkaMessageBuilder, ErrorType, State](
+    router: Router[PickleType, RequestResponse[State, ErrorType, ?]],
     config: WebsocketServerConfig = defaultServerConfig,
     recoverServerFailure: PartialFunction[ServerFailure, ErrorType] = PartialFunction.empty,
     recoverThrowable: PartialFunction[Throwable, ErrorType] = PartialFunction.empty)(implicit
