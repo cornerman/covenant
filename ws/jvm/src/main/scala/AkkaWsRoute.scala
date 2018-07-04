@@ -20,22 +20,22 @@ object AkkaWsRoute {
 
   def defaultServerConfig = WebsocketServerConfig(bufferSize = 100, overflowStrategy = OverflowStrategy.fail, parallelism = Runtime.getRuntime.availableProcessors)
 
-  def fromApiRouter[PickleType : AkkaMessageBuilder, ErrorType, Event, State](
-    router: Router[PickleType, RawServerDsl.ApiFunction[Event, State, ?]],
-    api: WsApiConfiguration[Event, ErrorType, State],
-    config: WebsocketServerConfig = defaultServerConfig
-  )(implicit
-    system: ActorSystem,
-    scheduler: Scheduler,
-    serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
-    deserializer: Deserializer[ClientMessage[PickleType], PickleType]) = {
-
-    val handler = new ApiRequestHandler[PickleType, Event, ErrorType, State](api, router)
-    routerToRoute(router, handler, config)
-  }
+//  def fromApiRouter[PickleType : AkkaMessageBuilder, ErrorType, Event, State](
+//    router: Router[PickleType, RawServerDsl.ApiFunction[Event, State, ?]],
+//    api: WsApiConfiguration[Event, ErrorType, State],
+//    config: WebsocketServerConfig = defaultServerConfig
+//  )(implicit
+//    system: ActorSystem,
+//    scheduler: Scheduler,
+//    serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
+//    deserializer: Deserializer[ClientMessage[PickleType], PickleType]) = {
+//
+//    val handler = new ApiRequestHandler[PickleType, Event, ErrorType, State](api, router)
+//    routerToRoute(router, handler, config)
+//  }
 
   def fromRouter[PickleType : AkkaMessageBuilder, ErrorType](
-    router: Router[PickleType, RequestResponse],
+    router: Router[PickleType, RequestResponse[ErrorType, ?]],
     config: WebsocketServerConfig = defaultServerConfig,
     recoverServerFailure: PartialFunction[ServerFailure, ErrorType] = PartialFunction.empty,
     recoverThrowable: PartialFunction[Throwable, ErrorType] = PartialFunction.empty)(implicit
@@ -54,12 +54,19 @@ object AkkaWsRoute {
       override def onRequest(client: ClientId, path: List[String], payload: PickleType): Response = {
         router(Request(path, payload)).toEither match {
           case Right(res) => res match {
-            case RequestResponse.Single(task) =>
-              val recoveredResult = task.map(EventualResult.Single.apply).onErrorRecover(recoverThrowable andThen EventualResult.Error.apply)
-              Response(recoveredResult)
-            case RequestResponse.Stream(observable) =>
-              val recoveredResult = observable
-              Response(Task.pure(EventualResult.Stream(recoveredResult)))
+            //TODO: dupe
+            case RequestResponse.Single(task) => Response {
+              task.map {
+                case Right(v) => EventualResult.Single(v)
+                case Left(err) => EventualResult.Error(err)
+              }.onErrorRecover(recoverThrowable andThen EventualResult.Error.apply)
+            }
+            case RequestResponse.Stream(task) => Response {
+              task.map {
+                case Right(v) => EventualResult.Stream(v)
+                case Left(err) => EventualResult.Error(err)
+              }.onErrorRecover(recoverThrowable andThen EventualResult.Error.apply)
+            }
           }
           case Left(failure) => recoverServerFailure.lift(failure) match {
             case Some(err) => Response(Task.pure(EventualResult.Error(err)))

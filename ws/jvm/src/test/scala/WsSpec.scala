@@ -6,7 +6,6 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import boopickle.Default._
-import cats.data.EitherT
 import chameleon.ext.boopickle._
 import covenant.ws.{AkkaWsRequestTransport, AkkaWsRoute}
 import covenant.{RequestClient, RequestRouter}
@@ -77,7 +76,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
      val port = 9990
 
     object Backend {
-      val router = RequestRouter[ByteBuffer]
+      val router = RequestRouter[ByteBuffer, ApiError]
         .route[Api[Future]](FutureApiImpl)
 
       def run() = {
@@ -87,7 +86,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     }
 
     object Frontend {
-      type Result[T] = EitherT[Future, ApiError, T]
+      type Result[T] = Future[Either[ApiError, T]]
       val transport = AkkaWsRequestTransport[ByteBuffer, ApiError](s"ws://localhost:$port/ws")
       val client = RequestClient[ByteBuffer, ApiError](transport)
       val api: Api[Result] = client.wire[Api[Result]]
@@ -96,8 +95,8 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     Backend.run()
 
     for {
-      fun <- Frontend.api.fun(1).value
-      fun2 <- Frontend.api.fun(1, 2).value
+      fun <- Frontend.api.fun(1)
+      fun2 <- Frontend.api.fun(1, 2)
     } yield {
       fun mustEqual Right(1)
       fun2 mustEqual Right(3)
@@ -108,7 +107,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     val port = 9991
 
     object Backend {
-      val router = RequestRouter[ByteBuffer]
+      val router = RequestRouter[ByteBuffer, ApiError]
         .route[Api[Observable]](ObservableApiImpl)
 
       def run() = {

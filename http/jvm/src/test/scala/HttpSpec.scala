@@ -6,8 +6,9 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import boopickle.Default._
+import cats.~>
 import chameleon.ext.boopickle._
-import covenant.{RequestClient, RequestRouter}
+import covenant.{RequestClient, RequestOperation, RequestResponse, RequestRouter}
 import covenant.api.ServerDsl
 import covenant.http._
 import monix.execution.Scheduler
@@ -70,7 +71,7 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     val port = 9989
 
     object Backend {
-      val router = RequestRouter[ByteBuffer]
+      val router = RequestRouter[ByteBuffer, HttpErrorCode]
         .route[Api[Future]](FutureApiImpl)
 
       def run() = {
@@ -99,7 +100,7 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     val port = 9987
 
     object Backend {
-      val router = RequestRouter[ByteBuffer]
+      val router = RequestRouter[ByteBuffer, HttpErrorCode]
         .route[Api[Observable]](ObservableApiImpl)
 
       def run() = {

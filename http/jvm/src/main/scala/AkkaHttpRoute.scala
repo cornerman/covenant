@@ -25,53 +25,53 @@ case class HttpServerConfig(bufferSize: Int = 100, overflowStrategy: OverflowStr
 object AkkaHttpRoute {
    import covenant.util.LogHelper._
 
-   def fromApiRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller, Event, ErrorType, State](
-     router: Router[PickleType, RawServerDsl.ApiFunction[Event, State, ?]],
-     api: HttpApiConfiguration[Event, ErrorType, State])(implicit
-     scheduler: Scheduler): Route = {
-
-     requestFunctionToRouteWithHeaders[PickleType] { (r, httpRequest) =>
-       val watch = StopWatch.started
-       val state: Future[State] = api.requestToState(httpRequest)
-       val path = httpRequest.getUri.toString.split("/").toList //TODO
-
-       router(r) match {
-         case RouterResult.Success(arguments, apiFunction) =>
-           val apiResponse = apiFunction.run(state)
-
-           val returnValue = {
-             apiResponse.value match {
-               case RequestResponse.Single(task) =>
-//                 val rawResult = future.map(_.raw)
-//                 val serializedResult = future.map(_.serialized)
-//                 scribe.info(s"http -->[response] ${requestLogLine(path, arguments, rawResult)} / ${events}. Took ${watch.readHuman}.")
-                 ??? //TODO
-               case RequestResponse.Stream(observable) =>
-                 ??? //TODO
-             }
-
-             //TODO: what about private evnets? scoping?
-//             api.publishEvents(apiResponse.action.events)
-
-//             serializedResult.transform {
-//               case Success(v) => Success(complete(v))
-//               //TODO map errors
-//               case Failure(err) => Success(complete(StatusCodes.BadRequest -> err.toString))
+//   def fromApiRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller, Event, ErrorType, State](
+//     router: Router[PickleType, RawServerDsl.ApiFunction[Event, State, ?]],
+//     api: HttpApiConfiguration[Event, ErrorType, State])(implicit
+//     scheduler: Scheduler): Route = {
+//
+//     requestFunctionToRouteWithHeaders[PickleType] { (r, httpRequest) =>
+//       val watch = StopWatch.started
+//       val state: Future[State] = api.requestToState(httpRequest)
+//       val path = httpRequest.getUri.toString.split("/").toList //TODO
+//
+//       router(r) match {
+//         case RouterResult.Success(arguments, apiFunction) =>
+//           val apiResponse = apiFunction.run(state)
+//
+//           val returnValue = {
+//             apiResponse.value match {
+//               case RequestResponse.Single(task) =>
+////                 val rawResult = future.map(_.raw)
+////                 val serializedResult = future.map(_.serialized)
+////                 scribe.info(s"http -->[response] ${requestLogLine(path, arguments, rawResult)} / ${events}. Took ${watch.readHuman}.")
+//                 ??? //TODO
+//               case RequestResponse.Stream(observable) =>
+//                 ??? //TODO
 //             }
-           }
-
-//           Right(returnValue)
-           ???
-
-         case RouterResult.Failure(arguments, error) =>
-           scribe.warn(s"http -->[failure] ${requestLogLine(path, arguments, error)}. Took ${watch.readHuman}.")
-           Left(error)
-       }
-     }
-   }
+//
+//             //TODO: what about private evnets? scoping?
+////             api.publishEvents(apiResponse.action.events)
+//
+////             serializedResult.transform {
+////               case Success(v) => Success(complete(v))
+////               //TODO map errors
+////               case Failure(err) => Success(complete(StatusCodes.BadRequest -> err.toString))
+////             }
+//           }
+//
+////           Right(returnValue)
+//           ???
+//
+//         case RouterResult.Failure(arguments, error) =>
+//           scribe.warn(s"http -->[failure] ${requestLogLine(path, arguments, error)}. Took ${watch.readHuman}.")
+//           Left(error)
+//       }
+//     }
+//   }
 
   def fromRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller : AsTextMessage](
-    router: Router[PickleType, RequestResponse],
+    router: Router[PickleType, RequestResponse[HttpErrorCode, ?]],
     config: HttpServerConfig = HttpServerConfig(),
     recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode] = PartialFunction.empty,
     recoverThrowable: PartialFunction[Throwable, HttpErrorCode] = PartialFunction.empty
@@ -79,7 +79,7 @@ object AkkaHttpRoute {
 
   //TODO split code, share with/without headers
   private def responseRouterToRoute[PickleType : FromRequestUnmarshaller : ToResponseMarshaller](
-    router: Router[PickleType, RequestResponse],
+    router: Router[PickleType, RequestResponse[HttpErrorCode, ?]],
     config: HttpServerConfig,
     recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode],
     recoverThrowable: PartialFunction[Throwable, HttpErrorCode]
@@ -90,20 +90,33 @@ object AkkaHttpRoute {
         entity(as[PickleType]) { entity =>
           router(Request(path, entity)).toEither match {
             case Right(result) => result match {
+              //TODO dupe
               case RequestResponse.Single(task) => onComplete(task.runAsync) {
-                case Success(r) => complete(r)
+                case Success(r) => r match {
+                  case Right(v) => complete(v)
+                  case Left(e) => complete(StatusCodes.custom(e.code, e.message))
+                }
                 case Failure(e) =>
                   val error = recoverThrowable.lift(e)
-                    .fold[StatusCode](StatusCodes.InternalServerError)(e => StatusCode.int2StatusCode(e.code))
+                    .fold[StatusCode](StatusCodes.InternalServerError)(e => StatusCodes.custom(e.code, e.message))
                   complete(error)
               }
-              case RequestResponse.Stream(observable) =>
-                val source = Source.fromPublisher(observable.map(t => ServerSentEvent(asText.write(t))).toReactivePublisher)
-                complete(source.keepAlive(config.keepAliveInterval, () => ServerSentEvent.heartbeat))
+              case RequestResponse.Stream(task) => onComplete(task.runAsync) {
+                case Success(r) => r match {
+                  case Right(observable) =>
+                    val source = Source.fromPublisher(observable.map(t => ServerSentEvent(asText.write(t))).toReactivePublisher)
+                    complete(source.keepAlive(config.keepAliveInterval, () => ServerSentEvent.heartbeat))
+                  case Left(e) => complete(StatusCodes.custom(e.code, e.message))
+                }
+                case Failure(e) =>
+                  val error = recoverThrowable.lift(e)
+                    .fold[StatusCode](StatusCodes.InternalServerError)(e => StatusCodes.custom(e.code, e.message))
+                  complete(error)
+              }
             }
             case Left(e) =>
               val error = recoverServerFailure.lift(e)
-                .fold[StatusCode](StatusCodes.BadRequest)(e => StatusCode.int2StatusCode(e.code))
+                .fold[StatusCode](StatusCodes.BadRequest)(e => StatusCodes.custom(e.code, e.message))
               complete(error)
           }
         }
