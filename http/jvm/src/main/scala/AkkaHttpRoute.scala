@@ -107,6 +107,10 @@ object AkkaHttpRoute {
                   val state: State = requestToState(request)
                   val value = stateFun.function(state)
                   runRouteTask(responseToValue(config, value), recoverThrowable)
+                case stateFun: RequestResponse.StateFunction[State, HttpErrorCode, PickleType] =>
+                  val state: State = requestToState(request)
+                  val value = stateFun.function(state)
+                  runRouteTask(responseToValue(config, value), recoverThrowable)
               }
               case Left(e) =>
                 val error = recoverServerFailure.lift(e)
@@ -125,6 +129,35 @@ object AkkaHttpRoute {
       val error = recoverThrowable.lift(t)
         .fold[StatusCode](StatusCodes.InternalServerError)(e => StatusCodes.custom(e.code, e.message))
       complete(error)
+  }
+
+  private def responseToValue[PickleType : FromRequestUnmarshaller : ToResponseMarshaller, State](
+  config: HttpServerConfig,
+  value: RequestResponse.Value[State, HttpErrorCode, PickleType]
+  )(implicit scheduler: Scheduler, asText: AsTextMessage[PickleType]): Task[Route] = value match {
+    case pureValue: RequestResponse.PureValue[HttpErrorCode, PickleType] => responseToPureValue(config, pureValue)
+    case RequestResponse.StateWithValue(state, value) =>
+      case Right(observable) =>
+        val source = Source.fromPublisher(observable.map(t => ServerSentEvent(asText.write(t))).toReactivePublisher)
+        complete(source.keepAlive(config.keepAliveInterval, () => ServerSentEvent.heartbeat))
+      case Left(e) => complete(StatusCodes.custom(e.code, e.message))
+    }
+  }
+
+  private def responseToPureValue[PickleType : FromRequestUnmarshaller : ToResponseMarshaller](
+  config: HttpServerConfig,
+  value: RequestResponse.PureValue[HttpErrorCode, PickleType]
+  )(implicit scheduler: Scheduler, asText: AsTextMessage[PickleType]): Task[Route] = value match {
+    case RequestResponse.Single(task) => task.map {
+      case Right(v) => complete(v)
+      case Left(e) => complete(StatusCodes.custom(e.code, e.message))
+    }
+    case RequestResponse.Stream(task) => task.map {
+      case Right(observable) =>
+        val source = Source.fromPublisher(observable.map(t => ServerSentEvent(asText.write(t))).toReactivePublisher)
+        complete(source.keepAlive(config.keepAliveInterval, () => ServerSentEvent.heartbeat))
+      case Left(e) => complete(StatusCodes.custom(e.code, e.message))
+    }
   }
 
   private def responseToValue[PickleType : FromRequestUnmarshaller : ToResponseMarshaller](
