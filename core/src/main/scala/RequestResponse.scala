@@ -12,27 +12,29 @@ sealed trait RequestResponse[+State, +ErrorType, +T] {
   def mapError[E](f: ErrorType => E): RequestResponse[State, E, T]
 }
 object RequestResponse extends RequestType {
-  sealed trait Value[State, +ErrorType, +T] extends RequestResponse[State, ErrorType, T] {
-    def map[R](f: T => R): Value[State, ErrorType, R]
-    def mapError[E](f: ErrorType => E): Value[State, E, T]
+  sealed trait Result[State, +ErrorType, +T] extends RequestResponse[State, ErrorType, T] {
+    def value: Value[ErrorType, T]
+    def map[R](f: T => R): Result[State, ErrorType, R]
+    def mapError[E](f: ErrorType => E): Result[State, E, T]
   }
-  sealed trait PureValue[+ErrorType, +T] extends Value[Nothing, ErrorType, T] {
-    def map[R](f: T => R): PureValue[ErrorType, R]
-    def mapError[E](f: ErrorType => E): PureValue[E, T]
+  sealed trait Value[+ErrorType, +T] extends Result[Nothing, ErrorType, T] {
+    def value: Value[ErrorType, T] = this
+    def map[R](f: T => R): Value[ErrorType, R]
+    def mapError[E](f: ErrorType => E): Value[E, T]
   }
-  case class Single[ErrorType, T](task: SingleF[Task, ErrorType, T]) extends PureValue[ErrorType, T] {
+  case class Single[ErrorType, T](task: SingleF[Task, ErrorType, T]) extends Value[ErrorType, T] {
     def map[R](f: T => R): Single[ErrorType, R] = Single(task.map(_.map(f)))
     def mapError[E](f: ErrorType => E): Single[E, T] = Single(task.map(_.left.map(f)))
   }
-  case class Stream[ErrorType, T](task: StreamF[Task, Observable, ErrorType, T]) extends PureValue[ErrorType, T] {
+  case class Stream[ErrorType, T](task: StreamF[Task, Observable, ErrorType, T]) extends Value[ErrorType, T] {
     def map[R](f: T => R): Stream[ErrorType, R] = Stream(task.map(_.map(_.map(f))))
     def mapError[E](f: ErrorType => E): Stream[E, T] = Stream(task.map(_.left.map(f)))
   }
-  case class StateWithValue[State, ErrorType, T](state: State, value: PureValue[ErrorType, T]) extends Value[State, ErrorType, T] {
+  case class StateWithValue[State, ErrorType, T](state: State, value: Value[ErrorType, T]) extends Result[State, ErrorType, T] {
     def map[R](f: T => R): StateWithValue[State, ErrorType, R] = copy(value = value.map(f))
     def mapError[E](f: ErrorType => E): StateWithValue[State, E, T] = copy(value = value.mapError(f))
   }
-  case class StateFunction[State, ErrorType, T](function: State => Value[State, ErrorType, T]) extends RequestResponse[State, ErrorType, T] {
+  case class StateFunction[State, ErrorType, T](function: State => Result[State, ErrorType, T]) extends RequestResponse[State, ErrorType, T] {
     def map[R](f: T => R): StateFunction[State, ErrorType, R] = StateFunction(function andThen (_.map(f)))
     def mapError[E](f: ErrorType => E): StateFunction[State, E, T] = StateFunction(function andThen (_.mapError(f)))
   }

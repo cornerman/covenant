@@ -13,10 +13,10 @@ class DefaultLogHandler[R[_], ErrorType](implicit monadError: MonadError[R, Erro
   def logRequest[T](path: List[String], arguments: Product, result: R[T]): R[T] = {
     val watch = StopWatch.started
    result.onError { case error =>
-     scribe.error(s"<-- ${requestLogLineError(path, arguments, error)}. Took ${watch.readHuman}.")
+     scribe.error(s"<--[error] ${requestLogLine(path, arguments, error)}. Took ${watch.readHuman}.")
      monadError.pure(())
    }.map { result =>
-     scribe.info(s"<-- ${requestLogLine(path, arguments, result)}. Took ${watch.readHuman}.")
+     scribe.info(s"<--[success] ${requestLogLine(path, arguments, result)}. Took ${watch.readHuman}.")
      result
    }
   }
