@@ -24,69 +24,16 @@ import scala.util.{Failure, Success, Try}
 case class HttpServerConfig(keepAliveInterval: FiniteDuration = 30 seconds)
 
 object AkkaHttpRoute {
-   import covenant.util.LogHelper._
-
-//   def fromApiRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller, Event, ErrorType, State](
-//     router: Router[PickleType, RawServerDsl.ApiFunction[Event, State, ?]],
-//     api: HttpApiConfiguration[Event, ErrorType, State])(implicit
-//     scheduler: Scheduler): Route = {
-//
-//     requestFunctionToRouteWithHeaders[PickleType] { (r, httpRequest) =>
-//       val watch = StopWatch.started
-//       val state: Future[State] = api.requestToState(httpRequest)
-//       val path = httpRequest.getUri.toString.split("/").toList //TODO
-//
-//       router(r) match {
-//         case RouterResult.Success(arguments, apiFunction) =>
-//           val apiResponse = apiFunction.run(state)
-//
-//           val returnValue = {
-//             apiResponse.value match {
-//               case RequestResponse.Single(task) =>
-////                 val rawResult = future.map(_.raw)
-////                 val serializedResult = future.map(_.serialized)
-////                 scribe.info(s"http -->[response] ${requestLogLine(path, arguments, rawResult)} / ${events}. Took ${watch.readHuman}.")
-//                 ??? //TODO
-//               case RequestResponse.Stream(observable) =>
-//                 ??? //TODO
-//             }
-//
-//             //TODO: what about private evnets? scoping?
-////             api.publishEvents(apiResponse.action.events)
-//
-////             serializedResult.transform {
-////               case Success(v) => Success(complete(v))
-////               //TODO map errors
-////               case Failure(err) => Success(complete(StatusCodes.BadRequest -> err.toString))
-////             }
-//           }
-//
-////           Right(returnValue)
-//           ???
-//
-//         case RouterResult.Failure(arguments, error) =>
-//           scribe.warn(s"http -->[failure] ${requestLogLine(path, arguments, error)}. Took ${watch.readHuman}.")
-//           Left(error)
-//       }
-//     }
-//   }
+  import covenant.util.LogHelper._
 
   def fromRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller : AsTextMessage](
     router: Router[PickleType, RequestResponse[Unit, HttpErrorCode, ?]],
     config: HttpServerConfig = HttpServerConfig(),
     recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode] = PartialFunction.empty,
     recoverThrowable: PartialFunction[Throwable, HttpErrorCode] = PartialFunction.empty
-  )(implicit scheduler: Scheduler): Route = responseRouterToRoute(router, config, _ => (), recoverServerFailure, recoverThrowable)
+  )(implicit scheduler: Scheduler): Route = fromRouterWithState(router, config, _ => (), recoverServerFailure, recoverThrowable)
 
   def fromRouterWithState[PickleType : FromRequestUnmarshaller : ToResponseMarshaller : AsTextMessage, State](
-    router: Router[PickleType, RequestResponse[State, HttpErrorCode, ?]],
-    config: HttpServerConfig = HttpServerConfig(),
-    requestToState: HttpRequest => State,
-    recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode] = PartialFunction.empty,
-    recoverThrowable: PartialFunction[Throwable, HttpErrorCode] = PartialFunction.empty
-  )(implicit scheduler: Scheduler): Route = responseRouterToRoute(router, config, requestToState, recoverServerFailure, recoverThrowable)
-
-  private def responseRouterToRoute[PickleType : FromRequestUnmarshaller : ToResponseMarshaller, State](
     router: Router[PickleType, RequestResponse[State, HttpErrorCode, ?]],
     config: HttpServerConfig,
     requestToState: HttpRequest => State,
@@ -107,7 +54,7 @@ object AkkaHttpRoute {
                   case result: RequestResponse.Result[State, HttpErrorCode, PickleType] =>
                     result
                   case stateFun: RequestResponse.StateFunction[State, HttpErrorCode, PickleType] =>
-                    val state: State = requestToState(request)
+                    val state = requestToState(request)
                     stateFun.function(state)
                 }
 
@@ -117,7 +64,7 @@ object AkkaHttpRoute {
                       scribe.info(s"http -->[response] ${requestLogLine(path, arguments, v)}. Took ${watch.readHuman}.")
                       complete(v)
                     case Left(e) =>
-                      scribe.info(s"http -->[error] ${requestLogLine(path, arguments, e)}. Took ${watch.readHuman}.")
+                      scribe.warn(s"http -->[error] ${requestLogLine(path, arguments, e)}. Took ${watch.readHuman}.")
                       complete(StatusCodes.custom(e.code, e.message))
                   }
                   case RequestResponse.Stream(task) => task.map {
@@ -130,10 +77,11 @@ object AkkaHttpRoute {
                       }.doOnError { t =>
                         scribe.warn(s"http -->[stream:error] ${requestLogLine(path, arguments)}. Took ${watch.readHuman}.", t)
                       }
+
                       val source = Source.fromPublisher(events.toReactivePublisher)
                       complete(source.keepAlive(config.keepAliveInterval, () => ServerSentEvent.heartbeat))
                     case Left(e) =>
-                      scribe.info(s"http -->[error] ${requestLogLine(path, arguments, e)}. Took ${watch.readHuman}.")
+                      scribe.warn(s"http -->[error] ${requestLogLine(path, arguments, e)}. Took ${watch.readHuman}.")
                       complete(StatusCodes.custom(e.code, e.message))
                   }
                 }
@@ -144,14 +92,14 @@ object AkkaHttpRoute {
                     val error = recoverThrowable.lift(t)
                       .fold[StatusCode](StatusCodes.InternalServerError)(e => StatusCodes.custom(e.code, e.message))
 
-                    scribe.info(s"http -->[failure] ${requestLogLine(path, arguments, error)}. Took ${watch.readHuman}.", t)
+                    scribe.warn(s"http -->[failure] ${requestLogLine(path, arguments, error)}. Took ${watch.readHuman}.", t)
                     complete(error)
                 }
               case RouterResult.Failure(arguments, e) =>
                 val error = recoverServerFailure.lift(e)
                   .fold[StatusCode](StatusCodes.BadRequest)(e => StatusCodes.custom(e.code, e.message))
 
-                scribe.warn(s"http -->[failure] ${requestLogLine(path, arguments, s"$e / $error")}. Took ${watch.readHuman}.")
+                scribe.warn(s"http -->[failure] ${requestLogLine(path, arguments, e)}. Took ${watch.readHuman}.")
                 complete(error)
             }
           }

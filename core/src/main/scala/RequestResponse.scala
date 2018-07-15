@@ -30,6 +30,7 @@ object RequestResponse extends RequestType {
     def map[R](f: T => R): Stream[ErrorType, R] = Stream(task.map(_.map(_.map(f))))
     def mapError[E](f: ErrorType => E): Stream[E, T] = Stream(task.map(_.left.map(f)))
   }
+  //TODO nice factory or tuple?
   case class StateWithValue[State, ErrorType, T](state: State, value: Value[ErrorType, T]) extends Result[State, ErrorType, T] {
     def map[R](f: T => R): StateWithValue[State, ErrorType, R] = copy(value = value.map(f))
     def mapError[E](f: ErrorType => E): StateWithValue[State, E, T] = copy(value = value.mapError(f))
