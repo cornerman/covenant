@@ -19,21 +19,19 @@ class WsRequestTransport[PickleType, ErrorType](
   private val defaultTransport = requestWith()
   def apply(request: Request[PickleType]): RequestOperation[ErrorType, PickleType] = defaultTransport(request)
 
-  def requestWith(sendType: SendType = SendType.WhenConnected, timeout: Option[FiniteDuration] = Some(30 seconds)) = new RequestTransport[PickleType, RequestOperation[ErrorType, ?]] {
-    def apply(request: Request[PickleType]): RequestOperation[ErrorType, PickleType] = {
-      val responseStream = mycelium.send(request.path, request.payload, sendType, timeout)
-      RequestOperation(
-        responseStream.flatMap {
-          case EventualResult.Single(v) => Task.pure(Right(v))
-          case EventualResult.Error(err) => Task.pure(Left(err))
-          case EventualResult.Stream(_) => Task.raiseError(TransportException.UnexpectedResult(s"Request (${request.path}) expects single result value, but got stream result"))
-        },
-        responseStream.flatMap {
-          case EventualResult.Stream(o) => Task.pure(Right(o))
-          case EventualResult.Error(err) => Task.pure(Left(err))
-          case EventualResult.Single(_) => Task.raiseError(TransportException.UnexpectedResult(s"Request (${request.path}) expects stream result, but got single result value"))
-        })
-    }
+  def requestWith(sendType: SendType = SendType.WhenConnected, timeout: Option[FiniteDuration] = Some(30 seconds)): RequestTransport[PickleType, RequestOperation[ErrorType, ?]] = RequestTransport { request =>
+    val responseStream = mycelium.send(request.path, request.payload, sendType, timeout)
+    RequestOperation[ErrorType, PickleType](
+      responseStream.flatMap {
+        case EventualResult.Single(v) => Task.pure(Right(v))
+        case EventualResult.Error(err) => Task.pure(Left(err))
+        case EventualResult.Stream(_) => Task.raiseError(TransportException.UnexpectedResult(s"Request (${request.path}) expects single result value, but got stream result"))
+      },
+      responseStream.flatMap {
+        case EventualResult.Stream(o) => Task.pure(Right(o))
+        case EventualResult.Error(err) => Task.pure(Left(err))
+        case EventualResult.Single(_) => Task.raiseError(TransportException.UnexpectedResult(s"Request (${request.path}) expects stream result, but got single result value"))
+      })
   }
 
   def connected: Observable[Boolean] = mycelium.connected

@@ -7,7 +7,6 @@ import akka.http.scaladsl.Http
 import akka.stream.{ActorMaterializer, OverflowStrategy}
 import boopickle.Default._
 import chameleon.ext.boopickle._
-import covenant.core.ResultTypes
 import covenant.ws.{AkkaWsRequestTransport, AkkaWsRoute}
 import covenant.{RequestClient, RequestRouter}
 import monix.execution.Scheduler

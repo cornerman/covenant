@@ -36,7 +36,7 @@ object AkkaHttpRoute {
 
   def fromRouterWithState[PickleType : FromRequestUnmarshaller : ToResponseMarshaller : AsTextMessage, State](
     router: Router[PickleType, RequestResponse[State, HttpErrorCode, ?]],
-    requestToState: Seq[HttpHeader] => State,
+    headerToState: Seq[HttpHeader] => State,
     config: HttpServerConfig = HttpServerConfig(),
     recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode] = PartialFunction.empty,
     recoverThrowable: PartialFunction[Throwable, HttpErrorCode] = PartialFunction.empty
@@ -55,7 +55,8 @@ object AkkaHttpRoute {
                   case result: RequestResponse.Result[State, HttpErrorCode, RouterResult.Value[PickleType]] =>
                     result
                   case stateFun: RequestResponse.StateFunction[State, HttpErrorCode, RouterResult.Value[PickleType]] =>
-                    val state = requestToState(request.headers)
+                    val convertedHeaders = request.headers.map(h => HttpHeader(name = h.name, value = h.value))
+                    val state = headerToState(convertedHeaders)
                     stateFun.function(state)
                 }
 

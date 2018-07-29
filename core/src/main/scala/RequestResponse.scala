@@ -21,7 +21,7 @@ object RequestResponse {
     def map[R](f: T => R): PureValue[ErrorType, R] = copy(value = value.map(f))
     def mapError[E](f: ErrorType => E): PureValue[E, T] = copy(value = value.mapError(f))
   }
-  case class StateWithValue[State, ErrorType, T](state: Task[State], value: RequestReturnValue[ErrorType, T]) extends Result[State, ErrorType, T] {
+  case class StateWithValue[State, ErrorType, T](state: State, value: RequestReturnValue[ErrorType, T]) extends Result[State, ErrorType, T] {
     def map[R](f: T => R): StateWithValue[State, ErrorType, R] = copy(value = value.map(f))
     def mapError[E](f: ErrorType => E): StateWithValue[State, E, T] = copy(value = value.mapError(f))
   }
@@ -35,8 +35,15 @@ object RequestResponse {
   }
 
   implicit def fromPureValue[ErrorType, State, F[_]](implicit mapping: ResultMapping[F, RequestReturnValue[ErrorType, ?]]): ResultMapping[F, RequestResponse[State, ErrorType, ?]] = ResultMapping[F, RequestResponse[State, ErrorType, ?]](Lambda[F ~> RequestResponse[State, ErrorType, ?]](f => PureValue(mapping(f))))
+  implicit def fromPureValueWithState[ErrorType, State, F[_]](implicit mapping: ResultMapping[F, RequestReturnValue[ErrorType, ?]]): ResultMapping[Lambda[T => (State, F[T])], RequestResponse[State, ErrorType, ?]] = ResultMapping[Lambda[T => (State, F[T])], RequestResponse[State, ErrorType, ?]](Lambda[Lambda[T => (State, F[T])] ~> RequestResponse[State, ErrorType, ?]] { case (state, f) => StateWithValue(state, mapping(f)) })
   implicit def fromStateFunctionF[ErrorType, State, F[_]](implicit mapping: ResultMapping[F, RequestReturnValue[ErrorType, ?]]): ResultMapping[Lambda[T => State => F[T]], RequestResponse[State, ErrorType, ?]] = new ResultMapping[Lambda[T => State => F[T]], RequestResponse[State, ErrorType, ?]] {
     def apply[T](f: State => F[T]): RequestResponse[State, ErrorType, T] = StateFunction[State, ErrorType, T](s => PureValue(mapping(f(s))))
+  }
+  implicit def fromStateFunctionFWithState[ErrorType, State, F[_]](implicit mapping: ResultMapping[F, RequestReturnValue[ErrorType, ?]]): ResultMapping[Lambda[T => State => (State, F[T])], RequestResponse[State, ErrorType, ?]] = new ResultMapping[Lambda[T => State => (State, F[T])], RequestResponse[State, ErrorType, ?]] {
+    def apply[T](f: State => (State, F[T])): RequestResponse[State, ErrorType, T] = StateFunction[State, ErrorType, T] { case s =>
+      val (state, r) = f(s)
+      StateWithValue(state, mapping(r))
+    }
   }
 }
 sealed trait RequestReturnValue[+ErrorType, +T] {

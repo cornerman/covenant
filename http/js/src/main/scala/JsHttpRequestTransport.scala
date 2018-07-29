@@ -44,7 +44,6 @@ object JsHttpRequestTransport {
       case b: dom.Blob => b
     }
 
-    //TODO why are var not initialized?
     val response = Fetch.fetch(uri, RequestInit(
       method = HttpMethod.POST,
       body = bodyInit

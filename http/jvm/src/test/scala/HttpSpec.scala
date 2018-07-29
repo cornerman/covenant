@@ -4,7 +4,6 @@ import java.nio.ByteBuffer
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.HttpHeader
 import akka.stream.ActorMaterializer
 import boopickle.Default._
 import cats.~>
@@ -12,11 +11,12 @@ import chameleon.ext.boopickle._
 import covenant.RequestResponse.{PureValue, StateFunction}
 import covenant._
 import covenant.api.ServerDsl
-import covenant.core.ResultTypes
+import covenant.core.{ResultTypes}
 import covenant.http._
 import monix.eval.Task
 import monix.execution.Scheduler
 import monix.reactive.Observable
+import monix.reactive.subjects.PublishSubject
 import org.scalatest._
 import sloth._
 
@@ -36,24 +36,18 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
   object ObservableApiImpl extends Api[Observable] {
     def fun(a: Int): Observable[Int] = Observable(a,2,3)
   }
-  //TODO ^ simple one api mixing
 
-  trait MixedApi[Single[_], Stream[_]] {
-    def single(a: Int): Single[Int]
-    def stream(a: Int, b: Int): Stream[Int]
-    def getState(): Single[State]
-  }
-  object MixedApi {
-    type SingleF[T] = State => Task[T]
-    type StreamF[T] = State => Observable[T]
-    type Single[T] = Task[T]
-    type Stream[T] = Observable[T]
-  }
 
   case class State(user: Option[String])
-  object MixedApiImpl extends MixedApi[MixedApi.SingleF, MixedApi.StreamF] {
-    override def single(a: Int) = _ => Task.pure(a)
-    override def stream(a: Int, b: Int) = _ => Observable(a, b)
+  trait MixedApi[Fun[F[_], T]] {
+    def single(a: Int): Task[Int]
+    def stream(a: Int, b: Int): Observable[Int]
+    def getState(): Fun[Task, State]
+  }
+
+  object MixedApiImpl extends MixedApi[ResultTypes.WithState[State]#Apply] {
+    override def single(a: Int) = Task.pure(a)
+    override def stream(a: Int, b: Int) = Observable(a, b)
     override def getState() = (a: State) => Task.pure(a)
   }
 
@@ -152,17 +146,15 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
   }
 
   "mixed api with state" in {
-    import covenant.http.api._
-
     val port = 9988
 
     object Backend {
 
       val router = RequestRouter.withState[ByteBuffer, HttpErrorCode, State]
-        .route[MixedApi[MixedApi.SingleF, MixedApi.StreamF]](MixedApiImpl)
+        .route[MixedApi[ResultTypes.WithState[State]#Apply]](MixedApiImpl)
 
       def extractNameFromHeaders(headers: Seq[HttpHeader]): State = {
-        headers.find(_.name() == "name").fold(State(None))(header => State(Some(header.value())))
+        headers.find(_.name == "user").fold(State(None))(header => State(Some(header.value)))
       }
 
       def run() = {
@@ -172,17 +164,24 @@ class HttpSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     }
 
     object Frontend {
+      val headers = PublishSubject[List[HttpHeader]]()
       val transport = AkkaHttpRequestTransport[ByteBuffer](s"http://localhost:$port")
-      val client = Client(transport)
-      val api = client.wire[MixedApi[MixedApi.SingleF, MixedApi.StreamF]]
+      val client = Client(transport.requestWith(headers))
+      val api = client.wire[MixedApi[ResultTypes.Apply]]
     }
 
     Backend.run()
 
     for {
+      _ <- Frontend.headers.onNext(Nil)
       fun <- Frontend.api.single(13).runAsync
       fun2 <- Frontend.api.stream(99, 71).toListL.runAsync
+      state1 <- Frontend.api.getState().runAsync
+      _ <- Frontend.headers.onNext(HttpHeader("user", "peter") :: Nil)
+      state2 <- Frontend.api.getState().runAsync
     } yield {
+      state1.user mustEqual None
+      state2.user mustEqual Some("peter")
       fun mustEqual 13
       fun2 mustEqual List(99, 71)
     }

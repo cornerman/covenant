@@ -4,7 +4,8 @@ import akka.NotUsed
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.marshalling._
-import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.HttpHeader.ParsingResult
+import akka.http.scaladsl.model.{HttpHeader => AkkaHttpHeader, _}
 import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.http.scaladsl.unmarshalling.sse.EventStreamUnmarshalling._
 import akka.http.scaladsl.unmarshalling.{Unmarshal, _}
@@ -16,7 +17,7 @@ import monix.eval.Task
 import monix.execution.{Ack, Scheduler}
 import monix.reactive.Observable
 import monix.reactive.observables.ConnectableObservable
-import monix.reactive.subjects.PublishSubject
+import monix.reactive.subjects.{ConcurrentSubject, PublishSubject}
 import sloth._
 
 import scala.concurrent.Future
@@ -29,16 +30,23 @@ object AkkaHttpRequestTransport {
     asText: AsTextMessage[PickleType],
     materializer: ActorMaterializer,
     unmarshaller: FromByteStringUnmarshaller[PickleType],
-    marshaller: ToEntityMarshaller[PickleType]) = RequestTransport[PickleType, RequestOperation[HttpErrorCode, ?]] { request =>
+    marshaller: ToEntityMarshaller[PickleType]): HttpRequestTransport[PickleType] = HttpRequestTransport(
 
-    RequestOperation(
-      //TODO headers to apply state from client?
-      sendRequest(baseUri, request, Nil),
-      sendStreamRequest(baseUri, request, Nil))
+    (request, headers) => sendRequest(baseUri, request, toAkkaHeaders(headers)),
+    (request, headers) => sendStreamRequest(baseUri, request, toAkkaHeaders(headers))
+  )
+
+  private def toAkkaHeaders(headers: List[HttpHeader]) = headers.flatMap { h =>
+    AkkaHttpHeader.parse(name = h.name, value = h.value) match {
+      case ParsingResult.Ok(header, _) => Some(header)
+      case ParsingResult.Error(err) =>
+        scribe.warn(s"Error parsing http header ($h), will ignore this header: $err")
+        None
+    }
   }
 
   // TODO: unify both send methods and branch in response?
-  private def sendRequest[PickleType](baseUri: String, request: Request[PickleType], headers: List[HttpHeader])(implicit
+  private def sendRequest[PickleType](baseUri: String, request: Request[PickleType], headers: List[AkkaHttpHeader])(implicit
     scheduler: Scheduler,
     system: ActorSystem,
     materializer: ActorMaterializer,
@@ -65,7 +73,7 @@ object AkkaHttpRequestTransport {
     }
   }
 
-  private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType], headers: List[HttpHeader])(implicit
+  private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType], headers: List[AkkaHttpHeader])(implicit
     scheduler: Scheduler,
     system: ActorSystem,
     materializer: ActorMaterializer,
