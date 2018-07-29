@@ -12,7 +12,7 @@ import sloth._
 
 import scala.concurrent.duration._
 
-sealed class WsRequestTransport[PickleType, ErrorType](
+class WsRequestTransport[PickleType, ErrorType](
   mycelium: WebsocketClient[PickleType, ErrorType]
 )(implicit scheduler: Scheduler) extends RequestTransport[PickleType, RequestOperation[ErrorType, ?]] with Cancelable {
 
@@ -28,10 +28,10 @@ sealed class WsRequestTransport[PickleType, ErrorType](
           case EventualResult.Error(err) => Task.pure(Left(err))
           case EventualResult.Stream(_) => Task.raiseError(TransportException.UnexpectedResult(s"Request (${request.path}) expects single result value, but got stream result"))
         },
-        responseStream.map {
-          case EventualResult.Stream(o) => Right(o)
-          case EventualResult.Error(err) => Left(err)
-          case EventualResult.Single(_) => Right(Observable.raiseError(TransportException.UnexpectedResult(s"Request (${request.path}) expects stream result, but got single result value")))
+        responseStream.flatMap {
+          case EventualResult.Stream(o) => Task.pure(Right(o))
+          case EventualResult.Error(err) => Task.pure(Left(err))
+          case EventualResult.Single(_) => Task.raiseError(TransportException.UnexpectedResult(s"Request (${request.path}) expects stream result, but got single result value"))
         })
     }
   }

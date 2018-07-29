@@ -9,11 +9,12 @@ import sloth._
 
 import scala.concurrent.Future
 
-case class RequestOperation[+ErrorType, +T](single: RequestOperation.SingleF[Task, ErrorType, T], stream: RequestOperation.StreamF[Task, Observable, ErrorType, T]) {
+case class RequestOperation[+ErrorType, +T](single: RequestType.SingleF[Task, ErrorType, T], stream: RequestType.StreamF[Task, Observable, ErrorType, T]) {
   def map[R](f: T => R): RequestOperation[ErrorType, R] = RequestOperation(single.map(_.map(f)), stream.map(_.map(_.map(f))))
   def mapError[E](f: ErrorType => E): RequestOperation[E, T] = RequestOperation(single.map(_.left.map(f)), stream.map(_.left.map(f)))
 }
-object RequestOperation extends RequestType {
+object RequestOperation {
+  import RequestType._
 
   implicit def clientResultError[ErrorType]: ClientResultErrorT[RequestOperation[ErrorType, ?], Throwable] = new ClientResultErrorT[RequestOperation[ErrorType, ?], Throwable] {
     def mapMaybe[T, R](result: RequestOperation[ErrorType, T])(f: T => Either[Throwable, R]) = RequestOperation[ErrorType, R](
@@ -61,6 +62,5 @@ object RequestOperation extends RequestType {
 }
 
 object RequestClient {
-  def apply[PickleType, ErrorType](transport: RequestTransport[PickleType, RequestOperation[ErrorType, ?]]): Client[PickleType, RequestOperation[ErrorType, ?]] = Client[PickleType, RequestOperation[ErrorType, ?]](transport) //TODO, DefaultLogHandler[RequestOperation[ErrorType, ?], Throwable])
-  def apply[PickleType, ErrorType](transport: RequestTransport[PickleType, RequestOperation[ErrorType, ?]], logger: LogHandler[RequestOperation[ErrorType, ?]]): Client[PickleType, RequestOperation[ErrorType, ?]] = Client[PickleType, RequestOperation[ErrorType, ?]](transport, logger)
+  def apply[PickleType, ErrorType](transport: RequestTransport[PickleType, RequestOperation[ErrorType, ?]], logger: LogHandler[RequestOperation[ErrorType, ?]] = DefaultLogHandler[ErrorType]): Client[PickleType, RequestOperation[ErrorType, ?]] = Client[PickleType, RequestOperation[ErrorType, ?]](transport, logger)
 }

@@ -4,14 +4,16 @@ import java.nio.ByteBuffer
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.stream.ActorMaterializer
+import akka.stream.{ActorMaterializer, OverflowStrategy}
 import boopickle.Default._
 import chameleon.ext.boopickle._
+import covenant.core.ResultTypes
 import covenant.ws.{AkkaWsRequestTransport, AkkaWsRoute}
 import covenant.{RequestClient, RequestRouter}
 import monix.execution.Scheduler
 import monix.reactive.Observable
 import mycelium.client._
+import mycelium.server.WebsocketServerConfig
 import org.scalatest._
 import sloth._
 
@@ -65,6 +67,7 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
 //  //
 //
  implicit val system = ActorSystem("mycelium")
+
  implicit val materializer = ActorMaterializer()
 
  override def afterAll(): Unit = {
@@ -137,26 +140,17 @@ class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
     }
   }
 
-// "dsl run" in {
-//   import covenant.ws.api._
+// "mixed api" in {
 //   import monix.execution.Scheduler.Implicits.global
 //
 //   val port = 9992
 //
-//   val api = new WsApiConfigurationWithDefaults[Event, ApiError, State] {
-//     override def dsl = Dsl
-//     override def initialState: State = ""
-//     override def isStateValid(state: State): Boolean = true
-//     override def serverFailure(error: ServerFailure): ApiError = ApiError(error.toString)
-//   }
-//
 //   object Backend {
-//     val router = Router[ByteBuffer, Dsl.ApiFunction]
-//       .route[Api[Dsl.ApiFunction]](DslApiImpl)
+//     val router = RequestRouter[ByteBuffer, ApiError]
+//       .route[MixedApi[ResultTypes.WithState[State]#Apply]](MixedApiImpl)
 //
 //     def run() = {
-//       val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
-//       val route = AkkaWsRoute.fromApiRouter(router, config, api)
+//       val route = AkkaWsRoute.fromRouterWithState[ByteBuffer, ApiError, State](router, initialState = State(None))
 //       Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
 //     }
 //   }

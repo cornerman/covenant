@@ -32,12 +32,13 @@ object AkkaHttpRequestTransport {
     marshaller: ToEntityMarshaller[PickleType]) = RequestTransport[PickleType, RequestOperation[HttpErrorCode, ?]] { request =>
 
     RequestOperation(
-      sendRequest(baseUri, request),
-      sendStreamRequest(baseUri, request))
+      //TODO headers to apply state from client?
+      sendRequest(baseUri, request, Nil),
+      sendStreamRequest(baseUri, request, Nil))
   }
 
   // TODO: unify both send methods and branch in response?
-  private def sendRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
+  private def sendRequest[PickleType](baseUri: String, request: Request[PickleType], headers: List[HttpHeader])(implicit
     scheduler: Scheduler,
     system: ActorSystem,
     materializer: ActorMaterializer,
@@ -49,7 +50,7 @@ object AkkaHttpRequestTransport {
 
     entity.flatMap { entity =>
       Http()
-        .singleRequest(HttpRequest(method = HttpMethods.POST, uri = uri, headers = Nil, entity = entity))
+        .singleRequest(HttpRequest(method = HttpMethods.POST, uri = uri, headers = headers, entity = entity))
         .flatMap { response =>
           response.status match {
             case StatusCodes.OK =>
@@ -64,7 +65,7 @@ object AkkaHttpRequestTransport {
     }
   }
 
-  private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit
+  private def sendStreamRequest[PickleType](baseUri: String, request: Request[PickleType], headers: List[HttpHeader])(implicit
     scheduler: Scheduler,
     system: ActorSystem,
     materializer: ActorMaterializer,
@@ -76,7 +77,7 @@ object AkkaHttpRequestTransport {
 
     entity.flatMap { entity =>
       val requested: Future[Either[HttpErrorCode, Source[ServerSentEvent, NotUsed]]] = Http()
-        .singleRequest(HttpRequest(method = HttpMethods.POST, uri = uri, headers = Nil, entity = entity))
+        .singleRequest(HttpRequest(method = HttpMethods.POST, uri = uri, headers = headers.toList, entity = entity))
         .flatMap { response =>
           response.status match {
             case StatusCodes.OK =>

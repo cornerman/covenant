@@ -15,6 +15,7 @@ import covenant.http.api._
 import covenant.util.StopWatch
 import monix.eval.Task
 import monix.execution.Scheduler
+import monix.reactive.Observable
 import sloth._
 
 import scala.concurrent.Future
@@ -31,14 +32,14 @@ object AkkaHttpRoute {
     config: HttpServerConfig = HttpServerConfig(),
     recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode] = PartialFunction.empty,
     recoverThrowable: PartialFunction[Throwable, HttpErrorCode] = PartialFunction.empty
-  )(implicit scheduler: Scheduler): Route = fromRouterWithState(router, config, _ => (), recoverServerFailure, recoverThrowable)
+  )(implicit scheduler: Scheduler): Route = fromRouterWithState(router, _ => (), config, recoverServerFailure, recoverThrowable)
 
   def fromRouterWithState[PickleType : FromRequestUnmarshaller : ToResponseMarshaller : AsTextMessage, State](
     router: Router[PickleType, RequestResponse[State, HttpErrorCode, ?]],
-    config: HttpServerConfig,
-    requestToState: HttpRequest => State,
-    recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode],
-    recoverThrowable: PartialFunction[Throwable, HttpErrorCode]
+    requestToState: Seq[HttpHeader] => State,
+    config: HttpServerConfig = HttpServerConfig(),
+    recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode] = PartialFunction.empty,
+    recoverThrowable: PartialFunction[Throwable, HttpErrorCode] = PartialFunction.empty
   )(implicit scheduler: Scheduler, asText: AsTextMessage[PickleType]): Route = {
 
     (path(Remaining) & post) { pathRest =>
@@ -51,27 +52,27 @@ object AkkaHttpRoute {
             router(Request(path, entity)) match {
               case RouterResult.Success(arguments, result) =>
                 val response = result match {
-                  case result: RequestResponse.Result[State, HttpErrorCode, PickleType] =>
+                  case result: RequestResponse.Result[State, HttpErrorCode, RouterResult.Value[PickleType]] =>
                     result
-                  case stateFun: RequestResponse.StateFunction[State, HttpErrorCode, PickleType] =>
-                    val state = requestToState(request)
+                  case stateFun: RequestResponse.StateFunction[State, HttpErrorCode, RouterResult.Value[PickleType]] =>
+                    val state = requestToState(request.headers)
                     stateFun.function(state)
                 }
 
                 val routeTask = response.value match {
-                  case RequestResponse.Single(task) => task.map {
+                  case RequestReturnValue.Single(task) => task.map {
                     case Right(v) =>
-                      scribe.info(s"http -->[response] ${requestLogLine(path, arguments, v)}. Took ${watch.readHuman}.")
-                      complete(v)
+                      scribe.info(s"http -->[response] ${requestLogLine(path, arguments, v.raw)}. Took ${watch.readHuman}.")
+                      complete(v.serialized)
                     case Left(e) =>
                       scribe.warn(s"http -->[error] ${requestLogLine(path, arguments, e)}. Took ${watch.readHuman}.")
                       complete(StatusCodes.custom(e.code, e.message))
                   }
-                  case RequestResponse.Stream(task) => task.map {
+                  case RequestReturnValue.Stream(task) => task.map {
                     case Right(observable) =>
                       val events = observable.map { v =>
-                        scribe.info(s"http -->[stream] ${requestLogLine(path, arguments, v)}. Took ${watch.readHuman}.")
-                        ServerSentEvent(asText.write(v))
+                        scribe.info(s"http -->[stream] ${requestLogLine(path, arguments, v.raw)}. Took ${watch.readHuman}.")
+                        ServerSentEvent(asText.write(v.serialized))
                       }.doOnComplete { () =>
                         scribe.info(s"http -->[stream:complete] ${requestLogLine(path, arguments)}. Took ${watch.readHuman}.")
                       }.doOnError { t =>

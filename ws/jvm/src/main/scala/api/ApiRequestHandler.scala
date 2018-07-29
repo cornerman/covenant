@@ -48,35 +48,36 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
           }
         }
 
-        val resultTask: Task[EventualResult[PickleType, ErrorType]] = response.flatMap(_.value match {
-          case RequestResponse.Single(task) => task.map {
-            case Right(v) =>
-              scribe.info(s"http -->[response] ${requestLogLine(path, arguments, v)}. Took ${watch.readHuman}.")
-              EventualResult.Single(v)
-            case Left(e) =>
-              scribe.warn(s"http -->[error] ${requestLogLine(path, arguments, e)}. Took ${watch.readHuman}.")
-              EventualResult.Error(e)
-          }
-          case RequestResponse.Stream(task) => task.map {
-            case Right(observable) =>
-              scribe.info(s"http -->[stream:started] ${requestLogLine(path, arguments)}. Took ${watch.readHuman}.")
-              val events = observable.map { v =>
-                scribe.info(s"http -->[stream] ${requestLogLine(path, arguments, v)}. Took ${watch.readHuman}.")
-                v
-              }.doOnComplete { () =>
-                scribe.info(s"http -->[stream:complete] ${requestLogLine(path, arguments)}. Took ${watch.readHuman}.")
-              }.doOnError { t =>
-                scribe.warn(s"http -->[stream:error] ${requestLogLine(path, arguments)}. Took ${watch.readHuman}.", t)
-              }
-
-              EventualResult.Stream(events)
-            case Left(e) =>
-              scribe.warn(s"http -->[error] ${requestLogLine(path, arguments, e)}. Took ${watch.readHuman}.")
-              EventualResult.Error(e)
-          }
-        })
-
-        Response(state, resultTask)
+//        val resultTask: Task[EventualResult[PickleType, ErrorType]] = response.flatMap(_.value match {
+//          case RequestResponse.Single(task) => task.map {
+//            case Right(v) =>
+//              scribe.info(s"http -->[response] ${requestLogLine(path, arguments, v)}. Took ${watch.readHuman}.")
+//              EventualResult.Single(v)
+//            case Left(e) =>
+//              scribe.warn(s"http -->[error] ${requestLogLine(path, arguments, e)}. Took ${watch.readHuman}.")
+//              EventualResult.Error(e)
+//          }
+//          case RequestResponse.Stream(task) => task.map {
+//            case Right(observable) =>
+//              scribe.info(s"http -->[stream:started] ${requestLogLine(path, arguments)}. Took ${watch.readHuman}.")
+//              val events = observable.map { v =>
+//                scribe.info(s"http -->[stream] ${requestLogLine(path, arguments, v)}. Took ${watch.readHuman}.")
+//                v
+//              }.doOnComplete { () =>
+//                scribe.info(s"http -->[stream:complete] ${requestLogLine(path, arguments)}. Took ${watch.readHuman}.")
+//              }.doOnError { t =>
+//                scribe.warn(s"http -->[stream:error] ${requestLogLine(path, arguments)}. Took ${watch.readHuman}.", t)
+//              }
+//
+//              EventualResult.Stream(events)
+//            case Left(e) =>
+//              scribe.warn(s"http -->[error] ${requestLogLine(path, arguments, e)}. Took ${watch.readHuman}.")
+//              EventualResult.Error(e)
+//          }
+//        })
+//
+//        Response(state, resultTask)
+        ???
       case RouterResult.Failure(arguments, e) =>
         val error = recoverServerFailure.lift(e)
           .fold[Task[EventualResult[PickleType, ErrorType]]](Task.raiseError(UnhandledServerFailure(e)))(e => Task.pure(EventualResult.Error(e)))

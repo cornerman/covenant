@@ -45,13 +45,13 @@ object AkkaWsRoute {
     system: ActorSystem,
     scheduler: Scheduler,
     serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
-    deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = fromRouterWithState[PickleType, ErrorType, Unit](router, config, (), _ => true, recoverServerFailure, recoverThrowable)
+    deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = fromRouterWithState[PickleType, ErrorType, Unit](router, (), _ => true, config, recoverServerFailure, recoverThrowable)
 
   def fromRouterWithState[PickleType : AkkaMessageBuilder, ErrorType, State](
     router: Router[PickleType, RequestResponse[State, ErrorType, ?]],
-    config: WebsocketServerConfig = defaultServerConfig,
     initialState: State,
-    isStateValid: State => Boolean,
+    isStateValid: State => Boolean = (_: State) => true,
+    config: WebsocketServerConfig = defaultServerConfig,
     recoverServerFailure: PartialFunction[ServerFailure, ErrorType] = PartialFunction.empty,
     recoverThrowable: PartialFunction[Throwable, ErrorType] = PartialFunction.empty)(implicit
     system: ActorSystem,
