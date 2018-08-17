@@ -6,6 +6,7 @@ import akka.http.scaladsl.server.Route
 import akka.stream.OverflowStrategy
 import chameleon._
 import covenant.RequestResponse
+import covenant.ws.api.ApiRequestHandler
 import monix.execution.Scheduler
 import mycelium.core._
 import mycelium.core.message._
@@ -39,22 +40,9 @@ object AkkaWsRoute {
     serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
 
-    val handler: RequestHandler[PickleType, ErrorType, State] = ???
-
-    routerToRoute(router, handler, config)
-  }
-
-  private def routerToRoute[PickleType : AkkaMessageBuilder, Result[_], ErrorType, Event, State](
-    router: Router[PickleType, Result],
-    handler: RequestHandler[PickleType, ErrorType, State],
-    config: WebsocketServerConfig
-  )(implicit
-    system: ActorSystem,
-    scheduler: Scheduler,
-    serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
-    deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
-
+    val handler = new ApiRequestHandler(router, initialState, isStateValid, config, recoverServerFailure, recoverThrowable)
     val websocketServer = WebsocketServer[PickleType, ErrorType, State](config, handler)
+
     get {
       handleWebSocketMessages(websocketServer.flow())
     }
