@@ -23,20 +23,16 @@ abstract class HttpRequestTransport[PickleType](implicit scheduler: Scheduler) e
 
     RequestTransport { request =>
       val currentHeaders = headersWithLast.headL
-      RequestOperation(currentHeaders.flatMap(requestSingle(request, _)), currentHeaders.flatMap(requestStream(request, _)))
+      RequestOperation(currentHeaders.flatMap(requestSingle(request, _)), currentHeaders.flatMap { headers =>
+        val (cancel, result) = requestStream(request, headers)
+        cancelable += cancel
+        result
+      })
     }
   }
 
   protected def requestSingle(request: Request[PickleType], headers: List[HttpHeader]): Task[Either[HttpErrorCode, PickleType]]
-  protected def requestStream(request: Request[PickleType], headers: List[HttpHeader]): Task[Either[HttpErrorCode, Observable[PickleType]]]
+  protected def requestStream(request: Request[PickleType], headers: List[HttpHeader]): (Cancelable, Task[Either[HttpErrorCode, Observable[PickleType]]])
 
   def cancel(): Unit = cancelable.cancel()
-}
-
-object HttpRequestTransport {
-  //TODO cancelable for event streams?
-  def apply[PickleType](single: (Request[PickleType], List[HttpHeader]) => Task[Either[HttpErrorCode, PickleType]], stream: (Request[PickleType], List[HttpHeader]) => Task[Either[HttpErrorCode, Observable[PickleType]]])(implicit scheduler: Scheduler) = new HttpRequestTransport[PickleType] {
-    override protected def requestSingle(request: Request[PickleType], headers: List[HttpHeader]) = single(request, headers)
-    override protected def requestStream(request: Request[PickleType], headers: List[HttpHeader]) = stream(request, headers)
-  }
 }

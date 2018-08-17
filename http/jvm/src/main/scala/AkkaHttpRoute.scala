@@ -10,7 +10,6 @@ import akka.http.scaladsl.unmarshalling._
 import akka.stream.scaladsl.Source
 import covenant._
 import covenant.util.StopWatch
-import monix.eval.Task
 import monix.execution.Scheduler
 import sloth._
 

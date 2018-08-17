@@ -22,11 +22,11 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
 
   override def initialState: Future[State] = Future.successful(initialStateValue)
 
-  override def onClientConnect(client: ClientId, state: Future[State]): Unit = {
+  override def onClientConnect(client: ClientId): Unit = {
     scribe.info(s"$client started")
   }
 
-  override def onClientDisconnect(client: ClientId, state: Future[State], reason: DisconnectReason): Unit = {
+  override def onClientDisconnect(client: ClientId, reason: DisconnectReason): Unit = {
     scribe.info(s"$client stopped: $reason")
   }
 
@@ -39,10 +39,10 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
 
       case RouterResult.Success(arguments, result) =>
         //TODO: share code with AkkaHttpRoute
-        val response: Task[RequestResponse.Result[State, ErrorType, PickleType]] = result match {
-          case result: RequestResponse.Result[State, ErrorType, PickleType] =>
+        val response: Task[RequestResponse.Result[State, ErrorType, RouterResult.Value[PickleType]]] = result match {
+          case result: RequestResponse.Result[State, ErrorType, RouterResult.Value[PickleType]] =>
             Task.pure(result)
-          case stateFun: RequestResponse.StateFunction[State, ErrorType, PickleType] => Task.fromFuture(state).map { state =>
+          case stateFun: RequestResponse.StateFunction[State, ErrorType, RouterResult.Value[PickleType]] => Task.fromFuture(state).map { state =>
             stateFun.function(state)
           }
         }
@@ -51,7 +51,7 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
           case RequestReturnValue.Single(task) => task.map {
             case Right(v) =>
               scribe.info(s"http -->[response] ${requestLogLine(path, arguments, v.raw)}. Took ${watch.readHuman}.")
-              EventualResult.Single(v)
+              EventualResult.Single(v.serialized)
             case Left(e) =>
               scribe.warn(s"http -->[error] ${requestLogLine(path, arguments, e)}. Took ${watch.readHuman}.")
               EventualResult.Error(e)
@@ -60,7 +60,7 @@ class ApiRequestHandler[PickleType, Event, ErrorType, State](
             case Right(observable) =>
               val events = observable.map { v =>
                 scribe.info(s"http -->[stream] ${requestLogLine(path, arguments, v.raw)}. Took ${watch.readHuman}.")
-                v
+                v.serialized
               }.doOnComplete { () =>
                 scribe.info(s"http -->[stream:complete] ${requestLogLine(path, arguments)}. Took ${watch.readHuman}.")
               }.doOnError { t =>

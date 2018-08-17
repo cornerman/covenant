@@ -14,7 +14,7 @@ import scala.concurrent.duration._
 
 class WsRequestTransport[PickleType, ErrorType](
   mycelium: WebsocketClient[PickleType, ErrorType]
-)(implicit scheduler: Scheduler) extends RequestTransport[PickleType, RequestOperation[ErrorType, ?]] with Cancelable {
+) extends RequestTransport[PickleType, RequestOperation[ErrorType, ?]] with Cancelable {
 
   private val defaultTransport = requestWith()
   def apply(request: Request[PickleType]): RequestOperation[ErrorType, PickleType] = defaultTransport(request)

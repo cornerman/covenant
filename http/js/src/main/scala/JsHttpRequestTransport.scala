@@ -1,8 +1,7 @@
 package covenant.http
 
-import covenant._
 import monix.eval.Task
-import monix.execution.Scheduler
+import monix.execution.{Cancelable, Scheduler}
 import monix.reactive.Observable
 import monix.reactive.observables.ConnectableObservable
 import monix.reactive.subjects.{ConcurrentSubject, PublishSubject}
@@ -23,11 +22,10 @@ object JsHttpRequestTransport {
     scheduler: Scheduler,
     asText: AsTextMessage[PickleType],
     builder: JsMessageBuilder[PickleType]
-  ) = RequestTransport[PickleType, RequestOperation[HttpErrorCode, ?]] { request =>
+  ) = new HttpRequestTransport[PickleType] {
 
-    RequestOperation(
-      sendRequest(baseUri, request),
-      sendStreamRequest(baseUri, request).map(Right.apply)) //TODO
+    override protected def requestSingle(request: Request[PickleType], headers: List[HttpHeader]) = sendRequest(baseUri, request)
+    override protected def requestStream(request: Request[PickleType], headers: List[HttpHeader]) = Cancelable.empty -> sendStreamRequest(baseUri, request).map(Right.apply) //TODO
   }
 
   private def sendRequest[PickleType](baseUri: String, request: Request[PickleType])(implicit

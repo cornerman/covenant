@@ -40,7 +40,7 @@ object AkkaWsRoute {
     serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
     deserializer: Deserializer[ClientMessage[PickleType], PickleType]): Route = {
 
-    val handler = new ApiRequestHandler(router, initialState, isStateValid, config, recoverServerFailure, recoverThrowable)
+    val handler = new ApiRequestHandler(router, initialState, isStateValid, recoverServerFailure, recoverThrowable)
     val websocketServer = WebsocketServer[PickleType, ErrorType, State](config, handler)
 
     get {

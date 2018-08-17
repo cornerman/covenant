@@ -13,7 +13,7 @@ import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Source
 import akka.util.ByteStringBuilder
 import monix.eval.Task
-import monix.execution.{Ack, Scheduler}
+import monix.execution.{Ack, Cancelable, Scheduler}
 import monix.reactive.Observable
 import monix.reactive.observables.ConnectableObservable
 import monix.reactive.subjects.PublishSubject
@@ -29,11 +29,11 @@ object AkkaHttpRequestTransport {
     asText: AsTextMessage[PickleType],
     materializer: ActorMaterializer,
     unmarshaller: FromByteStringUnmarshaller[PickleType],
-    marshaller: ToEntityMarshaller[PickleType]): HttpRequestTransport[PickleType] = HttpRequestTransport(
+    marshaller: ToEntityMarshaller[PickleType]): HttpRequestTransport[PickleType] = new HttpRequestTransport[PickleType] {
 
-    (request, headers) => sendRequest(baseUri, request, toAkkaHeaders(headers)),
-    (request, headers) => sendStreamRequest(baseUri, request, toAkkaHeaders(headers))
-  )
+    override protected def requestSingle(request: Request[PickleType], headers: List[HttpHeader]) = sendRequest(baseUri, request, toAkkaHeaders(headers))
+    override protected def requestStream(request: Request[PickleType], headers: List[HttpHeader]) = Cancelable.empty -> sendStreamRequest(baseUri, request, toAkkaHeaders(headers)) //TODO
+  }
 
   private def toAkkaHeaders(headers: List[HttpHeader]) = headers.flatMap { h =>
     AkkaHttpHeader.parse(name = h.name, value = h.value) match {
