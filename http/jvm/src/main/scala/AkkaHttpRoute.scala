@@ -5,22 +5,17 @@ import akka.http.scaladsl.marshalling.sse.EventStreamMarshalling._
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.sse.ServerSentEvent
 import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Route, RouteResult}
+import akka.http.scaladsl.server.Route
 import akka.http.scaladsl.unmarshalling._
-import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.Source
 import covenant._
-import covenant.api._
-import covenant.http.api._
 import covenant.util.StopWatch
 import monix.eval.Task
 import monix.execution.Scheduler
-import monix.reactive.Observable
 import sloth._
 
-import scala.concurrent.Future
 import scala.concurrent.duration.{FiniteDuration, _}
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 
 case class HttpServerConfig(keepAliveInterval: FiniteDuration = 30 seconds)
 
@@ -40,7 +35,7 @@ object AkkaHttpRoute {
     config: HttpServerConfig = HttpServerConfig(),
     recoverServerFailure: PartialFunction[ServerFailure, HttpErrorCode] = PartialFunction.empty,
     recoverThrowable: PartialFunction[Throwable, HttpErrorCode] = PartialFunction.empty
-  )(implicit scheduler: Scheduler, asText: AsTextMessage[PickleType]): Route = {
+  )(implicit scheduler: Scheduler): Route = {
 
     (path(Remaining) & post) { pathRest =>
       val watch = StopWatch.started
@@ -50,6 +45,7 @@ object AkkaHttpRoute {
         extractRequest { request =>
           entity(as[PickleType]) { entity =>
             router(Request(path, entity)) match {
+
               case RouterResult.Success(arguments, result) =>
                 val response = result match {
                   case result: RequestResponse.Result[State, HttpErrorCode, RouterResult.Value[PickleType]] =>
@@ -73,7 +69,7 @@ object AkkaHttpRoute {
                     case Right(observable) =>
                       val events = observable.map { v =>
                         scribe.info(s"http -->[stream] ${requestLogLine(path, arguments, v.raw)}. Took ${watch.readHuman}.")
-                        ServerSentEvent(asText.write(v.serialized))
+                        ServerSentEvent(implicitly[AsTextMessage[PickleType]].write(v.serialized))
                       }.doOnComplete { () =>
                         scribe.info(s"http -->[stream:complete] ${requestLogLine(path, arguments)}. Took ${watch.readHuman}.")
                       }.doOnError { t =>
@@ -97,6 +93,7 @@ object AkkaHttpRoute {
                     scribe.warn(s"http -->[failure] ${requestLogLine(path, arguments, error)}. Took ${watch.readHuman}.", t)
                     complete(error)
                 }
+
               case RouterResult.Failure(arguments, e) =>
                 val error = recoverServerFailure.lift(e)
                   .fold[StatusCode](StatusCodes.BadRequest)(e => StatusCodes.custom(e.code, e.message))

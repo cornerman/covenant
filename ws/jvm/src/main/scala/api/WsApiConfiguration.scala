@@ -1,6 +1,5 @@
 package covenant.ws.api
 
-import covenant.api._
 import sloth._
 
 trait WsApiConfiguration[Event, ErrorType, State] {
@@ -10,8 +9,6 @@ trait WsApiConfiguration[Event, ErrorType, State] {
   def unhandledException: PartialFunction[Throwable, ErrorType]
   def scopeOutgoingEvents(events: List[Event]): ScopedEvents[Event]
   def eventDistributor: EventDistributor[Event]
-
-  val dsl: ServerDsl[Event, State]
 }
 trait WsApiConfigurationWithDefaults[Event, ErrorType, State] extends WsApiConfiguration[Event, ErrorType, State] {
   override def scopeOutgoingEvents(events: List[Event]) = ScopedEvents[Event](events, events)

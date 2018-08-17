@@ -4,38 +4,18 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import akka.stream.OverflowStrategy
-import akka.stream.StreamRefMessages.Payload
 import chameleon._
 import covenant.RequestResponse
-import covenant.api._
-import covenant.ws.api._
-import monix.eval.Task
 import monix.execution.Scheduler
 import mycelium.core._
 import mycelium.core.message._
 import mycelium.server._
 import sloth._
 
-import scala.concurrent.Future
-
 object AkkaWsRoute {
   case class UnhandledServerFailure(failure: ServerFailure) extends Exception(s"Unhandled server failure: $failure")
 
   def defaultServerConfig = WebsocketServerConfig(bufferSize = 100, overflowStrategy = OverflowStrategy.fail, parallelism = Runtime.getRuntime.availableProcessors)
-
-//  def fromApiRouter[PickleType : AkkaMessageBuilder, ErrorType, Event, State](
-//    router: Router[PickleType, RawServerDsl.ApiFunction[Event, State, ?]],
-//    api: WsApiConfiguration[Event, ErrorType, State],
-//    config: WebsocketServerConfig = defaultServerConfig
-//  )(implicit
-//    system: ActorSystem,
-//    scheduler: Scheduler,
-//    serializer: Serializer[ServerMessage[PickleType, ErrorType], PickleType],
-//    deserializer: Deserializer[ClientMessage[PickleType], PickleType]) = {
-//
-//    val handler = new ApiRequestHandler[PickleType, Event, ErrorType, State](api, router)
-//    routerToRoute(router, handler, config)
-//  }
 
   def fromRouter[PickleType : AkkaMessageBuilder, ErrorType](
     router: Router[PickleType, RequestResponse[Unit, ErrorType, ?]],

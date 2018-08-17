@@ -1,10 +1,9 @@
 package covenant
 
-import cats.MonadError
-import covenant.util._
-import sloth.LogHandler
 import cats.implicits._
+import covenant.util._
 import monix.eval.Task
+import sloth.LogHandler
 
 class DefaultLogHandler[ErrorType] extends LogHandler[RequestOperation[ErrorType, ?]] {
   import LogHelper._

@@ -4,7 +4,7 @@ import java.nio.ByteBuffer
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.stream.{ActorMaterializer, OverflowStrategy}
+import akka.stream.ActorMaterializer
 import boopickle.Default._
 import chameleon.ext.boopickle._
 import covenant.ws.{AkkaWsRequestTransport, AkkaWsRoute}
@@ -12,7 +12,6 @@ import covenant.{RequestClient, RequestRouter}
 import monix.execution.Scheduler
 import monix.reactive.Observable
 import mycelium.client._
-import mycelium.server.WebsocketServerConfig
 import org.scalatest._
 import sloth._
 

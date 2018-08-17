@@ -1,7 +1,6 @@
 package covenant.ws.api
 
 import covenant.RequestResponse
-import covenant.api._
 import covenant.util.StopWatch
 import covenant.ws.AkkaWsRoute.UnhandledServerFailure
 import monix.eval.Task

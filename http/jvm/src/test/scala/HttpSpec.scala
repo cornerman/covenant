@@ -6,12 +6,9 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import boopickle.Default._
-import cats.~>
 import chameleon.ext.boopickle._
-import covenant.RequestResponse.{PureValue, StateFunction}
 import covenant._
-import covenant.api.ServerDsl
-import covenant.core.{ResultTypes}
+import covenant.core.ResultTypes
 import covenant.http._
 import monix.eval.Task
 import monix.execution.Scheduler
