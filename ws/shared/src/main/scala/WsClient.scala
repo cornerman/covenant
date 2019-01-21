@@ -39,6 +39,7 @@ abstract class WsClient[PickleType, Result[_], Event, Failure, ErrorType](
   def sendWith(sendType: SendType = SendType.WhenConnected, requestTimeout: FiniteDuration = 30 seconds): Client[PickleType, Result, ErrorType]
 }
 object WsClient extends NativeWsClient {
+  case class ErrorException[ErrorType](error: ErrorType) extends Exception
 
   def fromConnection[PickleType, Event, ErrorType](
     uri: String,
@@ -56,7 +57,7 @@ object WsClient extends NativeWsClient {
         def apply(request: Request[PickleType]): Future[PickleType] = {
           mycelium.send(request.path, request.payload, sendType, requestTimeout).flatMap {
             case Right(res) => Future.successful(res)
-            case Left(err) => Future.failed(new Exception(s"Websocket request failed: $err"))
+            case Left(err) => Future.failed(ErrorException[ErrorType](err))
           }
         }
       }
