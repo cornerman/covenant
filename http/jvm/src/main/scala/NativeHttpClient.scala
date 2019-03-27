@@ -24,7 +24,7 @@ private[http] trait NativeHttpClient {
   )(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
-    unmarshaller: FromByteStringUnmarshaller[PickleType],
+    unmarshaller: FromEntityUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]): Client[PickleType, Future, ClientException] = {
     import system.dispatcher
 
@@ -45,7 +45,7 @@ private[http] trait NativeHttpClient {
   )(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
-    unmarshaller: FromByteStringUnmarshaller[PickleType],
+    unmarshaller: FromEntityUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]): Client[PickleType, Future, ClientException] = {
       import system.dispatcher
       apply[PickleType](baseUri, new DefaultLogHandler[Future](identity))
@@ -59,7 +59,7 @@ private[http] trait NativeHttpClient {
   )(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
-    unmarshaller: FromByteStringUnmarshaller[PickleType],
+    unmarshaller: FromEntityUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]): Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType] = {
     import system.dispatcher
 
@@ -79,7 +79,7 @@ private[http] trait NativeHttpClient {
   )(request: Request[PickleType])(implicit
     system: ActorSystem,
     materializer: ActorMaterializer,
-    unmarshaller: FromByteStringUnmarshaller[PickleType],
+    unmarshaller: FromEntityUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]) = {
     import system.dispatcher
 
@@ -92,9 +92,7 @@ private[http] trait NativeHttpClient {
         .flatMap { response =>
           response.status match {
             case StatusCodes.OK =>
-              response.entity.dataBytes.runFold(new ByteStringBuilder)(_ append _).flatMap { b =>
-                Unmarshal(b.result).to[PickleType].map(Right.apply)
-              }
+              Unmarshal(response.entity).to[PickleType].map(Right(_))
             case code =>
               response.discardEntityBytes()
               Future.successful(Left(failedRequestError(uri, code)))
