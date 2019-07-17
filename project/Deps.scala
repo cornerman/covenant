@@ -8,7 +8,7 @@ object Deps {
 
   val scalaTest = dep("org.scalatest" %%% "scalatest" % "3.0.5")
   val scalajs = new {
-    val dom = dep("org.scala-js" %%% "scalajs-dom" % "0.9.6")
+    val dom = dep("org.scala-js" %%% "scalajs-dom" % "0.9.7")
   }
   val sloth = dep("com.github.cornerman.sloth" %%% "sloth" % "206b005")
   val mycelium = dep("com.github.cornerman.mycelium" %%% "mycelium" % "44906c6")
