@@ -44,7 +44,7 @@ lazy val commonSettings = Seq(
     Deps.scalaTest.value % Test ::
     Nil,
 
-  addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4")
+  addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.10")
 )
 
 enablePlugins(ScalaJSPlugin)
