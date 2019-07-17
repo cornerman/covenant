@@ -12,7 +12,7 @@ object Deps {
   }
   val sloth = dep("com.github.cornerman.sloth" %%% "sloth" % "206b005")
   val mycelium = dep("com.github.cornerman.mycelium" %%% "mycelium" % "44906c6")
-  val kittens = dep("org.typelevel" %%% "kittens" % "1.0.0-RC3")
+  val kittens = dep("org.typelevel" %%% "kittens" % "1.0.0")
   val akka = new {
     private val version = "2.5.11"
     val http = dep("com.typesafe.akka" %% "akka-http" % "10.1.0")
