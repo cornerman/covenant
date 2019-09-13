@@ -81,7 +81,7 @@ object WsClient extends NativeWsClient {
     def sendWith(sendType: SendType, requestTimeout: FiniteDuration) = {
       val transport = new RequestTransport[PickleType, EitherT[Future, ErrorType, ?]] {
         def apply(request: Request[PickleType]): EitherT[Future, ErrorType, PickleType] =
-          EitherT(mycelium.send(request.path, request.payload, sendType, requestTimeout).recover(recover andThen Left.apply))
+          EitherT(mycelium.send(request.path, request.payload, sendType, requestTimeout).recover(recover andThen (Left(_))))
       }
 
       Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType](transport, logger)
