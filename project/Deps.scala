@@ -21,5 +21,5 @@ object Deps {
   }
   val boopickle = dep("io.suzaku" %%% "boopickle" % "1.3.1")
   val scribe = dep("com.outr" %%% "scribe" % "2.7.9")
-  val monix = dep("io.monix" %%% "monix" % "3.0.0")
+  val monix = dep("io.monix" %%% "monix" % "3.2.1")
 }
