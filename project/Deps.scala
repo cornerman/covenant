@@ -14,8 +14,8 @@ object Deps {
   val mycelium = dep("com.github.cornerman.mycelium" %%% "mycelium" % "bad805c")
   val kittens = dep("org.typelevel" %%% "kittens" % "2.0.0")
   val akka = new {
-    private val version = "2.5.25"
-    val http = dep("com.typesafe.akka" %% "akka-http" % "10.1.9")
+    private val version = "2.6.4"
+    val http = dep("com.typesafe.akka" %% "akka-http" % "10.1.11")
     val stream = dep("com.typesafe.akka" %% "akka-stream" % version)
     val actor = dep("com.typesafe.akka" %% "akka-actor" % version)
   }
