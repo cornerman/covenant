@@ -20,8 +20,10 @@ import cats.implicits._
 import cats.derived.auto.functor._
 
 import scala.concurrent.Future
+import org.scalatest.freespec.AsyncFreeSpec
+import org.scalatest.matchers.must.Matchers
 
-class WsSpec extends AsyncFreeSpec with MustMatchers with BeforeAndAfterAll {
+class WsSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
   trait Api[Result[_]] {
     def fun(a: Int): Result[Int]
     @PathName("funWithDefault")

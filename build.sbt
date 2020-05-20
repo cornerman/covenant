@@ -2,8 +2,8 @@ inThisBuild(Seq(
   organization := "com.github.cornerman",
   version      := "0.1.0-SNAPSHOT",
 
-  scalaVersion := "2.12.10",
-  crossScalaVersions := Seq("2.12.10", "2.13.0"),
+  scalaVersion := "2.12.11",
+  crossScalaVersions := Seq("2.12.11", "2.13.2"),
 
   resolvers ++= (
     ("jitpack" at "https://jitpack.io") ::
