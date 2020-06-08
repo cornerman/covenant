@@ -19,7 +19,7 @@ object Deps {
     val stream = dep("com.typesafe.akka" %% "akka-stream" % version)
     val actor = dep("com.typesafe.akka" %% "akka-actor" % version)
   }
-  val boopickle = dep("io.suzaku" %%% "boopickle" % "1.3.1")
+  val boopickle = dep("io.suzaku" %%% "boopickle" % "1.3.3")
   val scribe = dep("com.outr" %%% "scribe" % "2.7.10")
   val monix = dep("io.monix" %%% "monix" % "3.2.1")
 }
