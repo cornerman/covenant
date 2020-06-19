@@ -4,12 +4,10 @@ import sloth._
 import covenant.core.DefaultLogHandler
 
 import akka.actor.ActorSystem
-import akka.util.ByteStringBuilder
 import akka.http.scaladsl.marshalling._
 import akka.http.scaladsl.unmarshalling._
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model._
-import akka.stream.ActorMaterializer
 
 import cats.data.EitherT
 import cats.implicits._
@@ -23,7 +21,6 @@ private[http] trait NativeHttpClient {
     logger: LogHandler[Future]
   )(implicit
     system: ActorSystem,
-    materializer: ActorMaterializer,
     unmarshaller: FromEntityUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]): Client[PickleType, Future, ClientException] = {
     import system.dispatcher
@@ -44,7 +41,6 @@ private[http] trait NativeHttpClient {
     baseUri: String
   )(implicit
     system: ActorSystem,
-    materializer: ActorMaterializer,
     unmarshaller: FromEntityUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]): Client[PickleType, Future, ClientException] = {
       import system.dispatcher
@@ -58,7 +54,6 @@ private[http] trait NativeHttpClient {
     logger: LogHandler[EitherT[Future, ErrorType, ?]] = null
   )(implicit
     system: ActorSystem,
-    materializer: ActorMaterializer,
     unmarshaller: FromEntityUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]): Client[PickleType, EitherT[Future, ErrorType, ?], ErrorType] = {
     import system.dispatcher
@@ -78,7 +73,6 @@ private[http] trait NativeHttpClient {
     failedRequestError: (String, StatusCode) => ErrorType
   )(request: Request[PickleType])(implicit
     system: ActorSystem,
-    materializer: ActorMaterializer,
     unmarshaller: FromEntityUnmarshaller[PickleType],
     marshaller: ToEntityMarshaller[PickleType]) = {
     import system.dispatcher

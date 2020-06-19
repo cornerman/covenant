@@ -19,7 +19,6 @@ lazy val commonSettings = Seq(
     "-explaintypes" ::
     "-feature" ::
     "-language:_" ::
-    "-Xfuture" ::
     "-Xlint" ::
     "-Ywarn-value-discard" ::
     "-Ywarn-extra-implicit" ::
@@ -51,10 +50,11 @@ lazy val commonSettings = Seq(
 enablePlugins(ScalaJSPlugin)
 
 lazy val root = (project in file("."))
-  .aggregate(coreJS, coreJVM, httpJS, httpJVM, wsJS, wsJVM)
+  .aggregate(core.js, core.jvm, http.js, http.jvm, ws.js, ws.jvm)
   .settings(commonSettings)
 
-lazy val core = crossProject.crossType(CrossType.Pure)
+lazy val core = crossProject(JVMPlatform, JSPlatform)
+  .crossType(CrossType.Pure)
   .settings(commonSettings)
   .settings(
     name := "covenant-core",
@@ -66,10 +66,7 @@ lazy val core = crossProject.crossType(CrossType.Pure)
       Nil
   )
 
-lazy val coreJS = core.js
-lazy val coreJVM = core.jvm
-
-lazy val http = crossProject
+lazy val http = crossProject(JVMPlatform, JSPlatform)
   .dependsOn(core)
   .settings(commonSettings)
   .settings(
@@ -88,10 +85,7 @@ lazy val http = crossProject
       Nil
   )
 
-lazy val httpJS = http.js
-lazy val httpJVM = http.jvm
-
-lazy val ws = crossProject
+lazy val ws = crossProject(JVMPlatform, JSPlatform)
   .dependsOn(core)
   .settings(commonSettings)
   .settings(
@@ -100,6 +94,3 @@ lazy val ws = crossProject
       Deps.mycelium.value ::
       Nil
   )
-
-lazy val wsJS = ws.js
-lazy val wsJVM = ws.jvm

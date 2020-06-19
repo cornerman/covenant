@@ -13,7 +13,7 @@ import mycelium.server._
 
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.RouteResult._
-import akka.stream.{ActorMaterializer, OverflowStrategy}
+import akka.stream.OverflowStrategy
 import akka.actor.ActorSystem
 
 import cats.implicits._
@@ -37,7 +37,7 @@ class WsSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
   object DslApiImpl extends Api[Dsl.ApiFunction] {
     import Dsl._
 
-    def fun(a: Int): ApiFunction[Int] = Action { state =>
+    def fun(a: Int): ApiFunction[Int] = Action { _ =>
       Future.successful(a)
     }
   }
@@ -59,7 +59,6 @@ class WsSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
   //
 
   implicit val system = ActorSystem("mycelium")
-  implicit val materializer = ActorMaterializer()
 
   override def afterAll(): Unit = {
     system.terminate()

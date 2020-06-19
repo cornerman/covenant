@@ -15,7 +15,6 @@ import akka.stream.Materializer
 import monix.execution.Scheduler
 
 import cats.data.EitherT
-import cats.syntax.either._
 
 import java.nio.ByteBuffer
 import scala.concurrent.{Future, ExecutionContext}
@@ -37,8 +36,7 @@ object AkkaHttpRoute {
    def fromApiRouter[PickleType : FromRequestUnmarshaller : ToResponseMarshaller, Event, ErrorType, State, Result[_]](
      router: Router[PickleType, Result],
      api: HttpApiConfiguration[Event, ErrorType, State])(implicit
-     scheduler: Scheduler,
-     env: Result[_] <:< ApiDsl[Event, ErrorType, State]#ApiFunction[_]): Route = {
+     scheduler: Scheduler): Route = {
 
      requestFunctionToRouteWithHeaders[PickleType] { (r, httpRequest) =>
        val watch = StopWatch.started
@@ -48,7 +46,6 @@ object AkkaHttpRoute {
        router(r).asInstanceOf[RouterResult[PickleType, ApiDsl[Event, ErrorType, State]#ApiFunction]] match {
          case RouterResult.Success(arguments, apiFunction) =>
            val apiResponse = apiFunction.run(state)
-           val newState = apiResponse.state
 
            val returnValue = apiResponse.value.map { value =>
              val rawResult = value.result.map(_.raw)

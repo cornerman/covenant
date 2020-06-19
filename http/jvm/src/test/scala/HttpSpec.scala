@@ -12,13 +12,13 @@ import java.nio.ByteBuffer
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.RouteResult._
 import akka.http.scaladsl.model._
-import akka.stream.ActorMaterializer
 import akka.actor.ActorSystem
 
 import cats.implicits._
 import cats.derived.auto.functor._
 
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration._
 import org.scalatest.freespec.AsyncFreeSpec
 import org.scalatest.matchers.must.Matchers
 
@@ -36,7 +36,7 @@ class HttpSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
   object DslApiImpl extends Api[Dsl.ApiFunction] {
     import Dsl._
 
-    def fun(a: Int): ApiFunction[Int] = Action { state =>
+    def fun(a: Int): ApiFunction[Int] = Action { _ =>
       Future.successful(a)
     }
   }
@@ -58,7 +58,7 @@ class HttpSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
   //
 
   implicit val system = ActorSystem("akkahttp")
-  implicit val materializer = ActorMaterializer()
+  var binding = null.asInstanceOf[Future[Http.ServerBinding]] 
 
  "simple run" in {
     val port = 9989
@@ -114,7 +114,7 @@ class HttpSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
      val api = client.wire[Api[Future]]
    }
 
-   Backend.run()
+   binding = Backend.run()
 
    for {
      fun <- Frontend.api.fun(1)
@@ -126,6 +126,8 @@ class HttpSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
  }
 
   override def afterAll(): Unit = {
+    val b = Await.result(binding, 1.second)
+    b.terminate(hardDeadline = 1.second)
     system.terminate()
     ()
   }

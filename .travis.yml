@@ -8,7 +8,7 @@ scala:
 cache:
   yarn: true
   directories:
-    - $HOME/.ivy2/cache
+    - $HOME/.cache/
     - $HOME/.ivy2/local
     - $HOME/.sbt/boot/
 
