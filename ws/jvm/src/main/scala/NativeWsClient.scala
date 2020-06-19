@@ -9,7 +9,7 @@ import mycelium.core.message._
 import chameleon._
 import cats.data.EitherT
 
-import akka.stream.{ActorMaterializer, OverflowStrategy}
+import akka.stream.OverflowStrategy
 import akka.actor.ActorSystem
 
 import scala.concurrent.Future
@@ -26,7 +26,6 @@ private[ws] trait NativeWsClient {
     logger: LogHandler[Future]
   )(implicit
     system: ActorSystem,
-    materializer: ActorMaterializer,
     builder: AkkaMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
@@ -40,7 +39,6 @@ private[ws] trait NativeWsClient {
     config: WebsocketClientConfig
   )(implicit
     system: ActorSystem,
-    materializer: ActorMaterializer,
     builder: AkkaMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
@@ -56,7 +54,6 @@ private[ws] trait NativeWsClient {
     logger: LogHandler[EitherT[Future, ErrorType, ?]] = null
   )(implicit
     system: ActorSystem,
-    materializer: ActorMaterializer,
     builder: AkkaMessageBuilder[PickleType],
     serializer: Serializer[ClientMessage[PickleType], PickleType],
     deserializer: Deserializer[ServerMessage[PickleType, Event, ErrorType], PickleType]
