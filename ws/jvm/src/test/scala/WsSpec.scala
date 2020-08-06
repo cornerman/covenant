@@ -75,7 +75,7 @@ class WsSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
       def run() = {
         val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
         val route = AkkaWsRoute.fromFutureRouter(router, config, failedRequestError = err => ApiError(err.toString))
-        Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
+        Http().newServerAt("0.0.0.0", port).bindFlow(route)
       }
     }
 
@@ -117,7 +117,7 @@ class WsSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
      def run() = {
        val config = WebsocketServerConfig(bufferSize = 5, overflowStrategy = OverflowStrategy.fail)
        val route = AkkaWsRoute.fromApiRouter(router, config, api)
-       Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
+       Http().newServerAt("0.0.0.0", port).bindFlow(route)
      }
    }
 
