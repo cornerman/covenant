@@ -68,7 +68,7 @@ class HttpSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
         .route[Api[Future]](FutureApiImpl)
 
       def run() = {
-        Http().bindAndHandle(AkkaHttpRoute.fromFutureRouter(router), interface = "0.0.0.0", port = port)
+        Http().newServerAt("0.0.0.0", port).bind(AkkaHttpRoute.fromFutureRouter(router))
       }
     }
 
@@ -105,7 +105,7 @@ class HttpSpec extends AsyncFreeSpec with Matchers with BeforeAndAfterAll {
 
      def run() = {
        val route = AkkaHttpRoute.fromApiRouter(router, api)
-       Http().bindAndHandle(route, interface = "0.0.0.0", port = port)
+       Http().newServerAt("0.0.0.0", port).bindFlow(route)
      }
    }
 
