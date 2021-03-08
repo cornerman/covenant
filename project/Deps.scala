@@ -6,7 +6,7 @@ object Deps {
   // hack to expand %%% in settings, needs .value in build.sbt
   import Def.{setting => dep}
 
-  val scalaTest = dep("org.scalatest" %%% "scalatest" % "3.2.2")
+  val scalaTest = dep("org.scalatest" %%% "scalatest" % "3.2.6")
   val scalajs = new {
     val dom = dep("org.scala-js" %%% "scalajs-dom" % "1.0.0")
   }
