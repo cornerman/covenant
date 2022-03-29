@@ -1,5 +1,7 @@
 # covenant
 
+**Deprecated** Check out [fun-stack](https://github.com/fun-stack), [sloth](https://github.com/cornerman/sloth) instead.
+
 Simply create HTTP or Websocket Server and client in scala.
 
 Server-side is JVM only and uses akka, client-side additionally supports scala-js.
